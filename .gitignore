@@ -39,3 +39,8 @@ Thumbs.db
 # Local build / cache
 .turbo/
 .vercel/
+
+# Agent configuration & instructions
+.agent/
+GEMINI.md
+
