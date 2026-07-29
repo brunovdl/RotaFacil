@@ -6,7 +6,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
-    origin: ['http://localhost:3000', 'https://rotafacil.vercel.app'],
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true,
   });
@@ -21,7 +21,7 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api');
 
-  const port = process.env.PORT || 3001;
+  const port = process.env.BACKEND_PORT || process.env.PORT || 3001;
   await app.listen(port);
   console.log(`RotaFácil API running on port ${port}`);
 }

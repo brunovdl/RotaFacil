@@ -23,8 +23,6 @@ FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
-ENV BACKEND_PORT=3001
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Instala utilitário para execução paralela de serviços
@@ -49,4 +47,4 @@ WORKDIR /app
 
 EXPOSE 3000 3001
 
-CMD ["concurrently", "\"node /app/backend/dist/main\"", "\"npm --prefix /app/frontend start\""]
+CMD ["concurrently", "\"BACKEND_PORT=3001 node /app/backend/dist/main\"", "\"PORT=3000 npm --prefix /app/frontend start\""]
