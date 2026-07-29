@@ -18,10 +18,13 @@ import {
   MapPinIcon,
   AddRouteIcon,
   SpinnerIcon,
+  OilIcon,
+  TireIcon,
+  FuelIcon,
 } from '@/components/ui/icons';
 import { api } from '@/lib/api';
 import { formatDistance, formatDuration } from '@/lib/utils';
-import type { DashboardStats } from '@/lib/types';
+import type { DashboardStats, Vehicle } from '@/lib/types';
 
 const statusLabel: Record<string, string> = {
   active: 'Ativa',
@@ -82,6 +85,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentRoutes, setRecentRoutes] = useState<any[]>([]);
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -95,12 +99,14 @@ export default function DashboardPage() {
 
   const loadData = async () => {
     try {
-      const [statsData, routesData] = await Promise.all([
+      const [statsData, routesData, vehicleData] = await Promise.all([
         api.routes.todayStats(),
         api.routes.list(1, 5),
+        api.vehicles.get().catch(() => null),
       ]);
       setStats(statsData);
       setRecentRoutes(routesData.data || []);
+      setVehicle(vehicleData);
     } catch (err: any) {
       if (err.message?.includes('Token') || err.message?.includes('401')) {
         localStorage.removeItem('token');
@@ -128,6 +134,95 @@ export default function DashboardPage() {
       <Header />
 
       <main className="px-4 pt-4 pb-28 space-y-4">
+
+        {/* ── Banners de Alertas de Manutenção do Veículo ── */}
+        {vehicle?.alerts && (vehicle.alerts.oil_due || vehicle.alerts.tire_due) && (
+          <div className="space-y-2 animate-fade-up">
+            {/* Alerta de Óleo */}
+            {vehicle.alerts.oil_due && (
+              <div
+                className="rounded-2xl p-4 flex items-center justify-between gap-3"
+                style={{
+                  background: vehicle.alerts.oil_overdue
+                    ? 'linear-gradient(135deg, rgba(239,68,68,0.18) 0%, rgba(185,28,28,0.08) 100%)'
+                    : 'linear-gradient(135deg, rgba(245,158,11,0.18) 0%, rgba(217,119,6,0.08) 100%)',
+                  border: vehicle.alerts.oil_overdue
+                    ? '1px solid rgba(239,68,68,0.4)'
+                    : '1px solid rgba(245,158,11,0.4)',
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: vehicle.alerts.oil_overdue ? 'rgba(239,68,68,0.2)' : 'rgba(245,158,11,0.2)',
+                      color: vehicle.alerts.oil_overdue ? '#FCA5A5' : '#FCD34D',
+                    }}
+                  >
+                    <OilIcon size={22} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold" style={{ color: vehicle.alerts.oil_overdue ? '#FCA5A5' : '#FCD34D' }}>
+                      {vehicle.alerts.oil_overdue ? '⚠️ TROCA DE ÓLEO VENCIDA!' : '⚠️ ATENÇÃO: TROCA DE ÓLEO PRÓXIMA'}
+                    </p>
+                    <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                      {vehicle.alerts.oil_overdue
+                        ? `Troca ultrapassada em ${Math.abs(vehicle.alerts.km_until_oil)} km!`
+                        : `Faltam apenas ${vehicle.alerts.km_until_oil} km para trocar o óleo (${vehicle.oil_type || 'Óleo'})`}
+                    </p>
+                  </div>
+                </div>
+                <Link href="/settings">
+                  <Button size="sm" variant="ghost" className="text-xs">
+                    Ver
+                  </Button>
+                </Link>
+              </div>
+            )}
+
+            {/* Alerta de Pneu */}
+            {vehicle.alerts.tire_due && (
+              <div
+                className="rounded-2xl p-4 flex items-center justify-between gap-3"
+                style={{
+                  background: vehicle.alerts.tire_overdue
+                    ? 'linear-gradient(135deg, rgba(239,68,68,0.18) 0%, rgba(185,28,28,0.08) 100%)'
+                    : 'linear-gradient(135deg, rgba(6,182,212,0.18) 0%, rgba(14,116,144,0.08) 100%)',
+                  border: vehicle.alerts.tire_overdue
+                    ? '1px solid rgba(239,68,68,0.4)'
+                    : '1px solid rgba(6,182,212,0.4)',
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: vehicle.alerts.tire_overdue ? 'rgba(239,68,68,0.2)' : 'rgba(6,182,212,0.2)',
+                      color: vehicle.alerts.tire_overdue ? '#FCA5A5' : '#67E8F9',
+                    }}
+                  >
+                    <TireIcon size={22} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold" style={{ color: vehicle.alerts.tire_overdue ? '#FCA5A5' : '#67E8F9' }}>
+                      {vehicle.alerts.tire_overdue ? '⚠️ TROCA DE PNEUS VENCIDA!' : '🛞 ATENÇÃO: REVISÃO DE PNEUS'}
+                    </p>
+                    <p className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                      {vehicle.alerts.tire_overdue
+                        ? `Troca ultrapassada em ${Math.abs(vehicle.alerts.km_until_tire)} km!`
+                        : `Faltam apenas ${vehicle.alerts.km_until_tire} km para a revisão de pneus`}
+                    </p>
+                  </div>
+                </div>
+                <Link href="/settings">
+                  <Button size="sm" variant="ghost" className="text-xs">
+                    Ver
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Stats Grid ── */}
         <div className="grid grid-cols-2 gap-3">

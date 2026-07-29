@@ -121,4 +121,22 @@ export const api = {
     deleteAccount: () =>
       request<any>('/users/account', { method: 'DELETE' }),
   },
+  vehicles: {
+    get: () => request<any>('/vehicles'),
+    update: (data: any) =>
+      request<any>('/vehicles', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    registerOilChange: (odometer_km?: number) =>
+      request<any>('/vehicles/oil-change', {
+        method: 'POST',
+        body: JSON.stringify({ odometer_km }),
+      }),
+    registerTireChange: (odometer_km?: number) =>
+      request<any>('/vehicles/tire-change', {
+        method: 'POST',
+        body: JSON.stringify({ odometer_km }),
+      }),
+  },
 };

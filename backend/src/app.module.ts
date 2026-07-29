@@ -10,6 +10,7 @@ import { ReportsModule } from './reports/reports.module';
 import { CepModule } from './cep/cep.module';
 import { GeocodingModule } from './geocoding/geocoding.module';
 import { OptimizationModule } from './optimization/optimization.module';
+import { VehiclesModule } from './vehicles/vehicles.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { OptimizationModule } from './optimization/optimization.module';
     CepModule,
     GeocodingModule,
     OptimizationModule,
+    VehiclesModule,
   ],
 })
 export class AppModule {}

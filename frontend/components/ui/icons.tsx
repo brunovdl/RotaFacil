@@ -547,5 +547,59 @@ export function AddressCardIcon({ className = '', size = 20, ...rest }: IconProp
   );
 }
 
+// ══════════════════════════════════════════
+// VEHICLE / CAR ICON — Carro e veículos
+// ══════════════════════════════════════════
+export function VehicleIcon({ className = '', size = 20, ...rest }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} {...rest}>
+      <path d="M4 11L6 6H18L20 11V18C20 18.6 19.6 19 19 19H18C17.4 19 17 18.6 17 18V17H7V18C7 18.6 6.6 19 6 19H5C4.4 19 4 18.6 4 18V11Z" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <circle cx="7.5" cy="14" r="1.5" fill="currentColor" />
+      <circle cx="16.5" cy="14" r="1.5" fill="currentColor" />
+      <path d="M6 11H18" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+// ══════════════════════════════════════════
+// OIL CAN ICON — Troca de óleo
+// ══════════════════════════════════════════
+export function OilIcon({ className = '', size = 20, ...rest }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} {...rest}>
+      <path d="M19 9L15 4H10L8 8H4C3.4 8 3 8.4 3 9V17C3 18.1 3.9 19 5 19H17C18.1 19 19 18.1 19 17V9Z" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M19 13L22 11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M12 11V15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ══════════════════════════════════════════
+// TIRE / WHEEL ICON — Troca de pneu
+// ══════════════════════════════════════════
+export function TireIcon({ className = '', size = 20, ...rest }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} {...rest}>
+      <circle cx="12" cy="12" r="9" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="12" cy="12" r="3.5" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M12 3V8.5M12 15.5V21M3 12H8.5M15.5 12H21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// ══════════════════════════════════════════
+// FUEL PUMP ICON — Posto de combustível
+// ══════════════════════════════════════════
+export function FuelIcon({ className = '', size = 20, ...rest }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className} {...rest}>
+      <path d="M5 4H13C14.1 4 15 4.9 15 6V20H5V4Z" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M15 9H18C18.6 9 19 9.4 19 10V14C19 14.6 18.6 15 18 15H17" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="7.5" y="7" width="5" height="4" rx="1" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+
 
 

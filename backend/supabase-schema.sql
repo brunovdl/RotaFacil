@@ -91,3 +91,27 @@ CREATE POLICY stops_via_route ON public.route_stops
 
 CREATE POLICY subscriptions_user_isolation ON public.subscriptions
   FOR ALL USING (user_id = auth.uid() OR auth.uid() IS NULL);
+
+-- Vehicles table
+CREATE TABLE IF NOT EXISTS public.vehicles (
+  id UUID PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE UNIQUE,
+  vehicle_type TEXT DEFAULT 'car',
+  odometer_km NUMERIC DEFAULT 0,
+  fuel_type TEXT DEFAULT 'flex',
+  km_per_liter NUMERIC DEFAULT 10,
+  fuel_price_per_liter NUMERIC DEFAULT 0,
+  oil_last_change_km NUMERIC DEFAULT 0,
+  oil_change_interval_km NUMERIC DEFAULT 5000,
+  oil_type TEXT,
+  tire_last_change_km NUMERIC DEFAULT 0,
+  tire_change_interval_km NUMERIC DEFAULT 40000,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.vehicles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY vehicles_user_isolation ON public.vehicles
+  FOR ALL USING (user_id = auth.uid() OR auth.uid() IS NULL);
+

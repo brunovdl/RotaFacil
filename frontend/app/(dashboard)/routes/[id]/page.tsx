@@ -18,7 +18,7 @@ import {
   openMultiStopNavigation,
   formatDateTime,
 } from '@/lib/utils';
-import type { Route, RouteStop } from '@/lib/types';
+import type { Route, RouteStop, Vehicle } from '@/lib/types';
 import {
   BackIcon,
   CheckIcon,
@@ -32,6 +32,7 @@ import {
   SpinnerIcon,
   DuplicateIcon,
   TrashIcon,
+  FuelIcon,
 } from '@/components/ui/icons';
 
 const statusLabel: Record<string, string> = {
@@ -50,6 +51,7 @@ export default function RouteDetailPage() {
   const router = useRouter();
   const params = useParams();
   const [route, setRoute] = useState<Route | null>(null);
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
   const [completedStops, setCompletedStops] = useState<Set<string>>(new Set());
   const [currentStopIndex, setCurrentStopIndex] = useState(0);
@@ -68,8 +70,12 @@ export default function RouteDetailPage() {
 
   const loadRoute = async () => {
     try {
-      const data = await api.routes.getById(params.id as string);
+      const [data, vehicleData] = await Promise.all([
+        api.routes.getById(params.id as string),
+        api.vehicles.get().catch(() => null),
+      ]);
       setRoute(data);
+      setVehicle(vehicleData);
       const completed = new Set<string>(
         (data.stops || []).filter((s: RouteStop) => s.completed).map((s: RouteStop) => s.id),
       );
@@ -296,16 +302,16 @@ export default function RouteDetailPage() {
           </div>
 
           {/* Key Metrics Grid */}
-          <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-white/10">
+          <div className="grid grid-cols-4 gap-1.5 text-center pt-2 border-t border-white/10">
             <div className="p-2 rounded-xl bg-white/5">
               <div className="flex items-center justify-center gap-1 text-brand-400 mb-0.5">
                 <DistanceIcon size={14} />
               </div>
-              <p className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+              <p className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
                 {formatDistance(route.total_distance_km)}
               </p>
-              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                Distância total
+              <p className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                Distância
               </p>
             </div>
 
@@ -313,11 +319,11 @@ export default function RouteDetailPage() {
               <div className="flex items-center justify-center gap-1 text-brand-400 mb-0.5">
                 <ClockIcon size={14} />
               </div>
-              <p className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+              <p className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
                 {formatDuration(route.estimated_duration_min)}
               </p>
-              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                Tempo estimado
+              <p className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                Tempo est.
               </p>
             </div>
 
@@ -325,11 +331,25 @@ export default function RouteDetailPage() {
               <div className="flex items-center justify-center gap-1 text-emerald-400 mb-0.5">
                 <PackageIcon size={14} />
               </div>
-              <p className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+              <p className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
                 {stops.length}
               </p>
-              <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              <p className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
                 Entregas
+              </p>
+            </div>
+
+            <div className="p-2 rounded-xl bg-white/5">
+              <div className="flex items-center justify-center gap-1 text-amber-400 mb-0.5">
+                <FuelIcon size={14} />
+              </div>
+              <p className="text-xs font-bold text-amber-300">
+                {((route.total_distance_km || 0) / (vehicle?.km_per_liter || 10)).toFixed(1)} L
+              </p>
+              <p className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                {vehicle?.fuel_price_per_liter && vehicle.fuel_price_per_liter > 0
+                  ? `~R$ ${(((route.total_distance_km || 0) / (vehicle.km_per_liter || 10)) * vehicle.fuel_price_per_liter).toFixed(2)}`
+                  : 'Consumo'}
               </p>
             </div>
           </div>

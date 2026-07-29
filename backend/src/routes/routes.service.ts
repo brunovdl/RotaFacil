@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseService } from '../database/database.service';
 import { OptimizationService } from '../optimization/optimization.service';
+import { VehiclesService } from '../vehicles/vehicles.service';
 import { CreateRouteDto } from './dto/create-route.dto';
 
 @Injectable()
@@ -9,6 +10,7 @@ export class RoutesService {
   constructor(
     private readonly db: DatabaseService,
     private readonly optimization: OptimizationService,
+    private readonly vehiclesService: VehiclesService,
   ) {}
 
   async create(userId: string, dto: CreateRouteDto): Promise<any> {
@@ -130,6 +132,14 @@ export class RoutesService {
       .single();
 
     if (error) throw error;
+
+    if (status === 'completed' && data && data.total_distance_km) {
+      await this.vehiclesService.addRouteKmToOdometer(
+        userId,
+        Number(data.total_distance_km),
+      );
+    }
+
     return data;
   }
 

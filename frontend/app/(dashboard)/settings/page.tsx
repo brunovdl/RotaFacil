@@ -8,7 +8,17 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
-import { CheckIcon, StarsIcon, AccountIcon } from '@/components/ui/icons';
+import {
+  CheckIcon,
+  StarsIcon,
+  AccountIcon,
+  VehicleIcon,
+  OilIcon,
+  TireIcon,
+  FuelIcon,
+} from '@/components/ui/icons';
+import { VehicleModal } from '@/components/ui/vehicle-modal';
+import type { Vehicle } from '@/lib/types';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -18,6 +28,21 @@ export default function SettingsPage() {
   const [subscription, setSubscription] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+
+  // Estados do Veículo
+  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
+  const [vehicleType, setVehicleType] = useState('car');
+  const [odometerKm, setOdometerKm] = useState('0');
+  const [fuelType, setFuelType] = useState('flex');
+  const [kmPerLiter, setKmPerLiter] = useState('10');
+  const [fuelPricePerLiter, setFuelPricePerLiter] = useState('0');
+  const [oilLastChangeKm, setOilLastChangeKm] = useState('0');
+  const [oilChangeIntervalKm, setOilChangeIntervalKm] = useState('5000');
+  const [oilType, setOilType] = useState('5W30');
+  const [tireLastChangeKm, setTireLastChangeKm] = useState('0');
+  const [tireChangeIntervalKm, setTireChangeIntervalKm] = useState('40000');
+  const [savingVehicle, setSavingVehicle] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -36,6 +61,7 @@ export default function SettingsPage() {
     }
 
     loadSubscription();
+    loadVehicle();
   }, [router]);
 
   const loadSubscription = async () => {
@@ -43,6 +69,81 @@ export default function SettingsPage() {
       const sub = await api.subscriptions.get();
       setSubscription(sub);
     } catch {}
+  };
+
+  const loadVehicle = async () => {
+    try {
+      const v = await api.vehicles.get();
+      setVehicle(v);
+      if (v) {
+        setVehicleType(v.vehicle_type || 'car');
+        setOdometerKm(String(v.odometer_km || 0));
+        setFuelType(v.fuel_type || 'flex');
+        setKmPerLiter(String(v.km_per_liter || 10));
+        setFuelPricePerLiter(String(v.fuel_price_per_liter || 0));
+        setOilLastChangeKm(String(v.oil_last_change_km || 0));
+        setOilChangeIntervalKm(String(v.oil_change_interval_km || 5000));
+        setOilType(v.oil_type || '5W30');
+        setTireLastChangeKm(String(v.tire_last_change_km || 0));
+        setTireChangeIntervalKm(String(v.tire_change_interval_km || 40000));
+      }
+    } catch {}
+  };
+
+  const handleUpdateVehicle = async (e: FormEvent) => {
+    e.preventDefault();
+    setSavingVehicle(true);
+    setMessage('');
+    try {
+      const updated = await api.vehicles.update({
+        vehicle_type: vehicleType as any,
+        odometer_km: parseFloat(odometerKm) || 0,
+        fuel_type: fuelType as any,
+        km_per_liter: parseFloat(kmPerLiter) || 10,
+        fuel_price_per_liter: parseFloat(fuelPricePerLiter) || 0,
+        oil_last_change_km: parseFloat(oilLastChangeKm) || 0,
+        oil_change_interval_km: parseFloat(oilChangeIntervalKm) || 5000,
+        oil_type: oilType,
+        tire_last_change_km: parseFloat(tireLastChangeKm) || 0,
+        tire_change_interval_km: parseFloat(tireChangeIntervalKm) || 40000,
+      });
+      setVehicle(updated);
+      setMessage('Dados do veículo salvos com sucesso!');
+    } catch (err: any) {
+      setMessage(err.message || 'Erro ao salvar veículo');
+    } finally {
+      setSavingVehicle(false);
+    }
+  };
+
+  const handleOilChangeNow = async () => {
+    setSavingVehicle(true);
+    try {
+      const odo = parseFloat(odometerKm) || 0;
+      const updated = await api.vehicles.registerOilChange(odo);
+      setVehicle(updated);
+      setOilLastChangeKm(String(odo));
+      setMessage('Troca de óleo registrada com sucesso no odômetro atual!');
+    } catch (err: any) {
+      setMessage(err.message || 'Erro ao registrar troca de óleo');
+    } finally {
+      setSavingVehicle(false);
+    }
+  };
+
+  const handleTireChangeNow = async () => {
+    setSavingVehicle(true);
+    try {
+      const odo = parseFloat(odometerKm) || 0;
+      const updated = await api.vehicles.registerTireChange(odo);
+      setVehicle(updated);
+      setTireLastChangeKm(String(odo));
+      setMessage('Troca de pneu registrada com sucesso no odômetro atual!');
+    } catch (err: any) {
+      setMessage(err.message || 'Erro ao registrar troca de pneu');
+    } finally {
+      setSavingVehicle(false);
+    }
   };
 
   const handleUpdateProfile = async (e: FormEvent) => {
@@ -156,6 +257,58 @@ export default function SettingsPage() {
           </form>
         </Card>
 
+        {/* ── Meu Veículo & Manutenção ── */}
+        <Card className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <VehicleIcon size={20} className="text-brand-400" />
+              <h2 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                Meu Veículo & Manutenção
+              </h2>
+            </div>
+            {vehicle?.alerts && (vehicle.alerts.oil_due || vehicle.alerts.tire_due) && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                ⚠️ Revisão Necessária
+              </span>
+            )}
+          </div>
+
+          <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.07] space-y-2 text-xs">
+            <div className="flex items-center justify-between py-1 border-b border-white/5">
+              <span style={{ color: 'var(--text-muted)' }}>Veículo & Combustível</span>
+              <span className="font-semibold text-brand-300 capitalize">
+                {vehicle?.vehicle_type === 'motorcycle' ? '🏍️ Moto' :
+                 vehicle?.vehicle_type === 'van' ? '🚐 Van' :
+                 vehicle?.vehicle_type === 'truck' ? '🚚 Caminhão' :
+                 vehicle?.vehicle_type === 'minibus' ? '🚌 Micro-ônibus' : '🚗 Carro'} ({vehicle?.fuel_type || 'Flex'})
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-1 border-b border-white/5">
+              <span style={{ color: 'var(--text-muted)' }}>Odômetro Atual</span>
+              <span className="font-bold" style={{ color: 'var(--text-primary)' }}>
+                {vehicle?.odometer_km ? `${vehicle.odometer_km.toLocaleString('pt-BR')} km` : '0 km'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between py-1">
+              <span style={{ color: 'var(--text-muted)' }}>Consumo Médio</span>
+              <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                {vehicle?.km_per_liter || 10} km/L {vehicle?.fuel_price_per_liter ? `(R$ ${vehicle.fuel_price_per_liter.toFixed(2)}/L)` : ''}
+              </span>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            className="w-full mt-2"
+            onClick={() => setIsVehicleModalOpen(true)}
+          >
+            <VehicleIcon size={18} className="mr-2" />
+            Dados do Veículo
+          </Button>
+        </Card>
+
         {/* Subscription */}
         <Card className="space-y-3">
           <div className="flex items-center justify-between">
@@ -239,6 +392,27 @@ export default function SettingsPage() {
           </button>
         </div>
       </main>
+
+      <VehicleModal
+        isOpen={isVehicleModalOpen}
+        onClose={() => setIsVehicleModalOpen(false)}
+        vehicle={vehicle}
+        onSave={async (data) => {
+          const updated = await api.vehicles.update(data);
+          setVehicle(updated);
+          setMessage('Dados do veículo salvos com sucesso!');
+        }}
+        onRegisterOilChange={async (odo) => {
+          const updated = await api.vehicles.registerOilChange(odo);
+          setVehicle(updated);
+          setMessage('Troca de óleo registrada com sucesso!');
+        }}
+        onRegisterTireChange={async (odo) => {
+          const updated = await api.vehicles.registerTireChange(odo);
+          setVehicle(updated);
+          setMessage('Troca de pneu registrada com sucesso!');
+        }}
+      />
 
       <BottomNav />
     </div>

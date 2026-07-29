@@ -68,3 +68,31 @@ export interface DashboardStats {
     estimatedDuration: number;
   } | null;
 }
+
+export interface VehicleAlerts {
+  oil_due: boolean;
+  oil_overdue: boolean;
+  km_until_oil: number;
+  next_oil_km: number;
+
+  tire_due: boolean;
+  tire_overdue: boolean;
+  km_until_tire: number;
+  next_tire_km: number;
+}
+
+export interface Vehicle {
+  id: string | null;
+  user_id: string;
+  vehicle_type: 'car' | 'motorcycle' | 'van' | 'truck' | 'minibus' | 'other';
+  odometer_km: number;
+  fuel_type: 'gasoline' | 'alcohol' | 'diesel' | 'gas' | 'flex';
+  km_per_liter: number;
+  fuel_price_per_liter: number;
+  oil_last_change_km: number;
+  oil_change_interval_km: number;
+  oil_type?: string;
+  tire_last_change_km: number;
+  tire_change_interval_km: number;
+  alerts?: VehicleAlerts;
+}
