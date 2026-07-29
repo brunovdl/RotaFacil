@@ -23,7 +23,9 @@ export class DatabaseService implements OnModuleInit {
       );
     }
 
-    this.supabase = createClient(supabaseUrl, supabaseKey);
+    this.supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: { persistSession: false },
+    });
   }
 
   async onModuleInit() {
