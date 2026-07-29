@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -308,6 +308,9 @@ export default function NewRoutePage() {
       setStartLat(pos.coords.latitude);
       setStartLng(pos.coords.longitude);
       setStartLabel('Localização atual (GPS)');
+      try {
+        localStorage.setItem('location_preference', 'gps');
+      } catch {}
       setStep('details');
     };
 
@@ -333,6 +336,25 @@ export default function NewRoutePage() {
       maximumAge: 60000,
     });
   }, []);
+
+  const autoGpsAttempted = useRef(false);
+
+  // ── Auto-obter GPS caso o usuário já tenha autorizado previamente ─────────
+  useEffect(() => {
+    if (autoGpsAttempted.current) return;
+    autoGpsAttempted.current = true;
+
+    const savedPref = typeof window !== 'undefined' ? localStorage.getItem('location_preference') : null;
+    if (savedPref === 'gps' && startLat === null) {
+      requestGps();
+    } else if (typeof window !== 'undefined' && navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        if (result.state === 'granted' && startLat === null) {
+          requestGps();
+        }
+      }).catch(() => {});
+    }
+  }, [requestGps, startLat]);
 
   // ── lookup CEP do endereço de partida ──────────────────────────────────────
   const lookupStartCep = async (cep: string) => {
@@ -367,6 +389,9 @@ export default function NewRoutePage() {
       setStartLat(coords.lat);
       setStartLng(coords.lng);
       setStartLabel(`${startAddr.street}, ${startAddr.number} — ${startAddr.city}`);
+      try {
+        localStorage.setItem('location_preference', 'address');
+      } catch {}
       setStep('details');
     } finally {
       setStartAddrLoading(false);
@@ -694,7 +719,7 @@ export default function NewRoutePage() {
       {/* Cabeçalho */}
       <div className="mb-5 flex items-center justify-between">
         <button
-          onClick={() => step === 'details' ? setStep('location') : setStep(STEPS[stepIndex - 1])}
+          onClick={() => step === 'details' ? router.push('/dashboard') : setStep(STEPS[stepIndex - 1])}
           className="inline-flex items-center gap-2 px-3 py-2 rounded-xl press-effect text-sm font-medium"
           style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}
         >
@@ -735,14 +760,26 @@ export default function NewRoutePage() {
           {/* Badge do ponto de partida confirmado */}
           {startLabel && (
             <div
-              className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+              className="flex items-center justify-between px-3.5 py-2.5 rounded-xl"
               style={{ background: 'rgba(16,217,160,0.08)', border: '1px solid rgba(16,217,160,0.2)' }}
             >
-              <MapPinIcon className="text-neon-green flex-shrink-0" size={16} />
-              <div>
-                <p className="text-xs font-medium" style={{ color: '#10D9A0' }}>Partida confirmada</p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{startLabel}</p>
+              <div className="flex items-center gap-2 min-w-0">
+                <MapPinIcon className="text-neon-green flex-shrink-0" size={16} />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium" style={{ color: '#10D9A0' }}>Partida confirmada</p>
+                  <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{startLabel}</p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep('location');
+                  setLocationMode('options');
+                }}
+                className="text-xs font-medium underline text-brand-300 press-effect flex-shrink-0 ml-2"
+              >
+                Alterar
+              </button>
             </div>
           )}
 

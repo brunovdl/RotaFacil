@@ -233,19 +233,14 @@ export default function DashboardPage() {
             <p className="font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
               Nenhuma rota em andamento
             </p>
-            <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               Crie uma rota e otimize suas entregas do dia
             </p>
-            <Link href="/routes/new">
-              <Button variant="primary" size="sm">
-                + Criar nova rota
-              </Button>
-            </Link>
           </div>
         )}
 
         {/* ── Ação Rápida ── */}
-        <Link href="/routes/new">
+        <Link href="/routes/new" className="block mt-3">
           <div
             className="animate-fade-up rounded-2xl p-4 flex items-center gap-4 hover-lift press-effect"
             style={{
