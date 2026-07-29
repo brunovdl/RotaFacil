@@ -75,6 +75,22 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ routeId }),
       }),
+    skip: (
+      stopId: string,
+      routeId: string,
+      reason?: string,
+      notes?: string,
+      moveToEnd = true,
+    ) =>
+      request<any>(`/stops/${stopId}/skip`, {
+        method: 'PUT',
+        body: JSON.stringify({ routeId, reason, notes, moveToEnd }),
+      }),
+    resume: (stopId: string, routeId: string) =>
+      request<any>(`/stops/${stopId}/resume`, {
+        method: 'PUT',
+        body: JSON.stringify({ routeId }),
+      }),
     nextStop: (routeId: string) => request<any>(`/stops/next/${routeId}`),
   },
   subscriptions: {

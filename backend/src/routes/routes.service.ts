@@ -100,7 +100,24 @@ export class RoutesService {
       .eq('route_id', id)
       .order('order_index', { ascending: true });
 
-    return { ...data, stops: stops || [] };
+    const formattedStops = (stops || []).map((stop) => {
+      let status = stop.status || (stop.completed ? 'completed' : 'pending');
+      let skipReason = stop.skip_reason || null;
+
+      if (!stop.status && stop.complement && stop.complement.includes('[ADIADA:')) {
+        status = 'skipped';
+        const match = stop.complement.match(/\[ADIADA:\s*([^\]]+)\]/);
+        if (match) skipReason = match[1];
+      }
+
+      return {
+        ...stop,
+        status,
+        skip_reason: skipReason,
+      };
+    });
+
+    return { ...data, stops: formattedStops };
   }
 
   async updateStatus(id: string, userId: string, status: string) {

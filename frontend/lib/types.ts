@@ -32,6 +32,9 @@ export interface RouteStop {
   lat: number;
   lng: number;
   completed: boolean;
+  status?: 'pending' | 'completed' | 'skipped' | 'failed';
+  skip_reason?: string;
+  notes?: string;
   distanceFromPrevious?: number;
   distanceFromStart?: number;
 }

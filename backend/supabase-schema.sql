@@ -41,8 +41,16 @@ CREATE TABLE IF NOT EXISTS public.route_stops (
   state TEXT NOT NULL,
   lat NUMERIC NOT NULL,
   lng NUMERIC NOT NULL,
-  completed BOOLEAN DEFAULT FALSE
+  completed BOOLEAN DEFAULT FALSE,
+  status TEXT DEFAULT 'pending',
+  skip_reason TEXT,
+  notes TEXT
 );
+
+-- Garantir que tabelas existentes recebam os novos campos
+ALTER TABLE public.route_stops ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE public.route_stops ADD COLUMN IF NOT EXISTS skip_reason TEXT;
+ALTER TABLE public.route_stops ADD COLUMN IF NOT EXISTS notes TEXT;
 
 ALTER TABLE public.route_stops ENABLE ROW LEVEL SECURITY;
 

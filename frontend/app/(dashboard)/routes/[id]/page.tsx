@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RouteMap } from '@/components/ui/route-map';
 import { LoadingOverlay } from '@/components/ui/loading-overlay';
+import { SuspendStopModal } from '@/components/ui/suspend-stop-modal';
 import { api } from '@/lib/api';
 import {
   formatDistance,
@@ -54,6 +55,7 @@ export default function RouteDetailPage() {
   const [currentStopIndex, setCurrentStopIndex] = useState(0);
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [suspendModalStop, setSuspendModalStop] = useState<RouteStop | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -89,8 +91,28 @@ export default function RouteDetailPage() {
         return next;
       });
       setCurrentStopIndex((prev) => prev + 1);
+      await loadRoute();
     } catch (err: any) {
       alert(err.message || 'Erro ao concluir parada');
+    }
+  };
+
+  const handleConfirmSkipStop = async (reason: string, notes: string, moveToEnd: boolean) => {
+    if (!suspendModalStop) return;
+    try {
+      await api.stops.skip(suspendModalStop.id, params.id as string, reason, notes, moveToEnd);
+      await loadRoute();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao adiar entrega');
+    }
+  };
+
+  const handleResumeStop = async (stopId: string) => {
+    try {
+      await api.stops.resume(stopId, params.id as string);
+      await loadRoute();
+    } catch (err: any) {
+      alert(err.message || 'Erro ao retomar entrega');
     }
   };
 
@@ -179,7 +201,8 @@ export default function RouteDetailPage() {
   if (!route) return null;
 
   const stops = route.stops || [];
-  const activeStops = stops.filter((s) => !completedStops.has(s.id));
+  const activeStops = stops.filter((s) => !completedStops.has(s.id) && s.status !== 'skipped');
+  const skippedStops = stops.filter((s) => !completedStops.has(s.id) && s.status === 'skipped');
   const isAllCompleted = stops.length > 0 && completedStops.size === stops.length;
   const progressPct = stops.length > 0 ? Math.round((completedStops.size / stops.length) * 100) : 0;
 
@@ -430,27 +453,40 @@ export default function RouteDetailPage() {
               </div>
             )}
 
-            {/* Ação 2: Navegar Parada Atual ou Concluir */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            {/* Ação 2: Navegar Parada Atual, Adiar ou Concluir */}
+            <div className="grid grid-cols-3 gap-2 pt-1">
               <button
                 onClick={() => handleNavigate(activeStops[0], 'google_maps')}
-                className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-semibold press-effect"
+                className="flex items-center justify-center gap-1 py-2.5 px-2 rounded-xl text-xs font-semibold press-effect"
                 style={{
                   background: 'rgba(255,255,255,0.06)',
                   border: '1px solid rgba(255,255,255,0.12)',
                   color: 'var(--text-primary)',
                 }}
               >
-                <GoogleMapsIcon size={16} /> Só esta parada
+                <GoogleMapsIcon size={14} /> GPS
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSuspendModalStop(activeStops[0])}
+                className="flex items-center justify-center gap-1 py-2.5 px-2 rounded-xl text-xs font-semibold press-effect"
+                style={{
+                  background: 'rgba(245,158,11,0.15)',
+                  border: '1px solid rgba(245,158,11,0.3)',
+                  color: '#FCD34D',
+                }}
+              >
+                <ClockIcon size={14} /> Adiar
               </button>
 
               <Button
                 variant="success"
                 size="sm"
                 onClick={() => handleCompleteStop(activeStops[0].id)}
-                className="w-full flex items-center justify-center gap-1.5"
+                className="w-full flex items-center justify-center gap-1 px-1"
               >
-                <CheckIcon size={16} /> Concluir parada
+                <CheckIcon size={14} /> Concluir
               </Button>
             </div>
           </Card>
@@ -463,104 +499,151 @@ export default function RouteDetailPage() {
               Lista de paradas
             </h2>
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {stops.length} no total
+              {stops.length} no total {skippedStops.length > 0 && `• ${skippedStops.length} adiadas`}
             </span>
           </div>
 
           {stops.map((stop, index) => {
             const isCompleted = completedStops.has(stop.id);
+            const isSkipped = stop.status === 'skipped';
             const isCurrent = activeStops.length > 0 && activeStops[0].id === stop.id;
 
             return (
               <div
                 key={stop.id}
                 onClick={() => setSelectedStopId(stop.id)}
-                className={`rounded-2xl p-3 flex items-start gap-3 transition-all duration-200 cursor-pointer ${
+                className={`rounded-2xl p-3 flex flex-col gap-2 transition-all duration-200 cursor-pointer ${
                   isCurrent ? 'ring-1 ring-brand-500/60' : ''
                 }`}
                 style={{
                   background: isCompleted
                     ? 'rgba(255,255,255,0.02)'
+                    : isSkipped
+                    ? 'rgba(245,158,11,0.06)'
                     : isCurrent
                     ? 'linear-gradient(135deg, rgba(124,58,237,0.15) 0%, rgba(79,70,229,0.05) 100%)'
                     : 'rgba(255,255,255,0.04)',
-                  border: isCurrent
+                  border: isSkipped
+                    ? '1px solid rgba(245,158,11,0.3)'
+                    : isCurrent
                     ? '1px solid rgba(124,58,237,0.4)'
                     : '1px solid rgba(255,255,255,0.07)',
                   opacity: isCompleted ? 0.6 : 1,
                 }}
               >
-                {/* Number Badge */}
-                <div
-                  className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5"
-                  style={{
-                    background: isCompleted
-                      ? 'rgba(16,217,160,0.15)'
-                      : isCurrent
-                      ? 'linear-gradient(135deg, #7C3AED, #4F46E5)'
-                      : 'rgba(255,255,255,0.08)',
-                    color: isCompleted ? '#10D9A0' : '#FFFFFF',
-                  }}
-                >
-                  {isCompleted ? <CheckIcon size={16} /> : index + 1}
-                </div>
-
-                {/* Stop Address Info */}
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={`text-sm font-semibold truncate ${
-                      isCompleted ? 'line-through' : ''
-                    }`}
+                <div className="flex items-start gap-3 w-full">
+                  {/* Number Badge */}
+                  <div
+                    className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5"
                     style={{
-                      color: isCompleted ? 'var(--text-muted)' : 'var(--text-primary)',
+                      background: isCompleted
+                        ? 'rgba(16,217,160,0.15)'
+                        : isSkipped
+                        ? 'rgba(245,158,11,0.2)'
+                        : isCurrent
+                        ? 'linear-gradient(135deg, #7C3AED, #4F46E5)'
+                        : 'rgba(255,255,255,0.08)',
+                      color: isCompleted ? '#10D9A0' : isSkipped ? '#FCD34D' : '#FFFFFF',
                     }}
                   >
-                    {stop.street}, {stop.number}
-                    {stop.complement && (
-                      <span className="font-normal" style={{ color: 'var(--text-muted)' }}>
-                        {' '}
-                        — {stop.complement}
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    {stop.neighborhood}, {stop.city} — {stop.state}
-                  </p>
-                </div>
-
-                {/* Direct GPS Navigate button */}
-                {!isCompleted && (
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleNavigate(stop, 'google_maps');
-                      }}
-                      className="p-1.5 rounded-lg press-effect"
-                      style={{
-                        background: 'rgba(255,255,255,0.06)',
-                        color: 'var(--text-secondary)',
-                      }}
-                      title="Abrir no Google Maps"
-                    >
-                      <GoogleMapsIcon size={16} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleNavigate(stop, 'waze');
-                      }}
-                      className="p-1.5 rounded-lg press-effect"
-                      style={{
-                        background: 'rgba(255,255,255,0.06)',
-                        color: 'var(--text-secondary)',
-                      }}
-                      title="Abrir no Waze"
-                    >
-                      <WazeIcon size={16} />
-                    </button>
+                    {isCompleted ? <CheckIcon size={16} /> : isSkipped ? <ClockIcon size={16} /> : index + 1}
                   </div>
-                )}
+
+                  {/* Stop Address Info */}
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm font-semibold truncate ${
+                        isCompleted ? 'line-through' : ''
+                      }`}
+                      style={{
+                        color: isCompleted ? 'var(--text-muted)' : 'var(--text-primary)',
+                      }}
+                    >
+                      {stop.street}, {stop.number}
+                      {stop.complement && (
+                        <span className="font-normal" style={{ color: 'var(--text-muted)' }}>
+                          {' '}
+                          — {stop.complement}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {stop.neighborhood}, {stop.city} — {stop.state}
+                    </p>
+
+                    {/* Motivo de adiamento */}
+                    {isSkipped && (
+                      <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] font-medium">
+                        <span>⚠️ Adiada: {stop.skip_reason || 'Adiada pelo motorista'}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Direct GPS Navigate & Adiar buttons */}
+                  {!isCompleted && !isSkipped && (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSuspendModalStop(stop);
+                        }}
+                        className="p-1.5 rounded-lg press-effect text-amber-400"
+                        style={{
+                          background: 'rgba(245,158,11,0.12)',
+                          border: '1px solid rgba(245,158,11,0.25)',
+                        }}
+                        title="Adiar entrega"
+                      >
+                        <ClockIcon size={16} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNavigate(stop, 'google_maps');
+                        }}
+                        className="p-1.5 rounded-lg press-effect"
+                        style={{
+                          background: 'rgba(255,255,255,0.06)',
+                          color: 'var(--text-secondary)',
+                        }}
+                        title="Abrir no Google Maps"
+                      >
+                        <GoogleMapsIcon size={16} />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Ações para parada Adiada */}
+                  {isSkipped && !isCompleted && (
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleResumeStop(stop.id);
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg press-effect text-xs font-semibold"
+                        style={{
+                          background: 'rgba(124,58,237,0.2)',
+                          border: '1px solid rgba(124,58,237,0.4)',
+                          color: '#A78BFA',
+                        }}
+                        title="Retomar entrega"
+                      >
+                        Retomar
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCompleteStop(stop.id);
+                        }}
+                        className="p-1.5 rounded-lg press-effect text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                        title="Marcar como concluída"
+                      >
+                        <CheckIcon size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -602,6 +685,14 @@ export default function RouteDetailPage() {
           <Button size="lg" className="w-full mt-4" onClick={handleCompleteRoute}>
             Finalizar rota completa
           </Button>
+        )}
+
+        {suspendModalStop && (
+          <SuspendStopModal
+            stop={suspendModalStop}
+            onConfirm={handleConfirmSkipStop}
+            onClose={() => setSuspendModalStop(null)}
+          />
         )}
 
         {actionOverlay && (
