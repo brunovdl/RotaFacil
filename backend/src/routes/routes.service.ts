@@ -92,25 +92,42 @@ export class RoutesService {
 
     const routes = rawRoutes || [];
 
-    // Verificação proativa e sincronização de status para rotas ativas cujas paradas já foram finalizadas
-    for (const route of routes) {
-      if (route.status === 'active') {
-        const { data: stops } = await this.db.client
-          .from('route_stops')
-          .select('id, completed, status')
-          .eq('route_id', route.id);
+    // Sincronização de status: rotas ativas cujas paradas foram todas finalizadas
+    // Usa update direto no banco (sem chamar updateStatus) para evitar recursão
+    const activeRoutes = routes.filter((r) => r.status === 'active');
+    if (activeRoutes.length > 0) {
+      const activeIds = activeRoutes.map((r) => r.id);
 
-        if (stops && stops.length > 0) {
-          const hasPending = stops.some((s) => !s.completed && s.status !== 'skipped');
-          if (!hasPending) {
-            route.status = 'completed';
-            await this.updateStatus(route.id, userId, 'completed');
-          }
+      const { data: allStops } = await this.db.client
+        .from('route_stops')
+        .select('id, route_id, completed, status')
+        .in('route_id', activeIds);
+
+      const stopsByRoute = new Map<string, any[]>();
+      for (const stop of allStops || []) {
+        if (!stopsByRoute.has(stop.route_id)) stopsByRoute.set(stop.route_id, []);
+        stopsByRoute.get(stop.route_id)!.push(stop);
+      }
+
+      for (const route of routes) {
+        if (route.status !== 'active') continue;
+        const stops = stopsByRoute.get(route.id) || [];
+        if (stops.length === 0) continue;
+        const hasPending = stops.some((s) => !s.completed && s.status !== 'skipped');
+        if (!hasPending) {
+          route.status = 'completed';
+          // Atualiza diretamente sem chamar updateStatus para evitar recursão
+          await this.db.client
+            .from('routes')
+            .update({ status: 'completed', updated_at: new Date().toISOString() })
+            .eq('id', route.id)
+            .eq('user_id', userId);
         }
       }
     }
 
     return { data: routes, total: count, page, limit };
+
   }
 
   async findById(id: string, userId: string) {
@@ -134,7 +151,12 @@ export class RoutesService {
     if (data.status === 'active' && stops && stops.length > 0) {
       const hasPending = stops.some((s) => !s.completed && s.status !== 'skipped');
       if (!hasPending) {
-        await this.updateStatus(id, userId, 'completed');
+        // Update direto no banco — evita recursão com updateStatus
+        await this.db.client
+          .from('routes')
+          .update({ status: 'completed', updated_at: new Date().toISOString() })
+          .eq('id', id)
+          .eq('user_id', userId);
         data.status = 'completed';
       }
     }
@@ -160,7 +182,13 @@ export class RoutesService {
   }
 
   async updateStatus(id: string, userId: string, status: string) {
-    const existing = await this.findById(id, userId);
+    // Busca apenas o status atual — select direto sem chamar findById para evitar recursão
+    const { data: current } = await this.db.client
+      .from('routes')
+      .select('status, total_distance_km')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
 
     const { data, error } = await this.db.client
       .from('routes')
@@ -180,7 +208,7 @@ export class RoutesService {
         .eq('route_id', id)
         .neq('status', 'skipped');
 
-      if (existing?.status !== 'completed' && data && data.total_distance_km) {
+      if (current?.status !== 'completed' && data && data.total_distance_km) {
         await this.vehiclesService.addRouteKmToOdometer(
           userId,
           Number(data.total_distance_km),
