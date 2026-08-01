@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { SpinnerIcon, CheckIcon, BackIcon, SpreadsheetIcon } from '@/components/ui/icons';
 import { formatCep, onlyNumbers } from '@/lib/utils';
 import { api } from '@/lib/api';
 
+// ── Tipos Públicos ─────────────────────────────────────────────────────────
 export interface ImportedAddress {
   cep: string;
   street: string;
@@ -24,30 +25,238 @@ interface SpreadsheetImporterProps {
   onClose: () => void;
 }
 
+// ── Tipos Internos ─────────────────────────────────────────────────────────
 interface ColumnMapping {
   cep: string;
+  addressFull: string; // coluna com rua + número na mesma célula
   street: string;
   number: string;
   complement: string;
   neighborhood: string;
   city: string;
   state: string;
+  lat: string;
+  lng: string;
 }
 
+interface DetectedPlatform {
+  name: string;
+  emoji: string;
+  color: string;
+}
+
+interface PlatformTemplate {
+  name: string;
+  emoji: string;
+  color: string;
+  /** Todos os padrões devem estar presentes para reconhecer a plataforma */
+  fingerprint: RegExp[];
+  /** Padrões para encontrar o nome exato da coluna em cada campo */
+  columnPatterns: Partial<Record<keyof ColumnMapping, RegExp>>;
+}
+
+// ── Templates de Plataformas Conhecidas ────────────────────────────────────
+const PLATFORM_TEMPLATES: PlatformTemplate[] = [
+  {
+    name: 'Shopee Express',
+    emoji: '🧡',
+    color: '#EE4D2D',
+    fingerprint: [/destination\s*address/i, /zipcode|postal\s*code/i],
+    columnPatterns: {
+      addressFull: /destination\s*address/i,
+      cep: /zipcode|postal\s*code/i,
+      neighborhood: /^bairro$/i,
+      city: /^city$/i,
+      lat: /^latitude$/i,
+      lng: /^longitude$/i,
+    },
+  },
+  {
+    name: 'Mercado Livre',
+    emoji: '💛',
+    color: '#F5A623',
+    fingerprint: [/destinatario|recipient|comprador/i, /cep|zip|postal/i],
+    columnPatterns: {
+      street: /logradouro|rua|street|endereco|endereço/i,
+      number: /^(numero|número|nro|num\b|n\.)$/i,
+      complement: /complemento|comp\b|apto/i,
+      neighborhood: /bairro/i,
+      city: /cidade|city|municipio/i,
+      state: /^(uf|estado|state)$/i,
+      cep: /cep|zip|postal/i,
+    },
+  },
+  {
+    name: 'iFood',
+    emoji: '❤️',
+    color: '#EA1D2C',
+    fingerprint: [/endere.o\s*completo|full\s*address/i, /cep|zip|postal/i],
+    columnPatterns: {
+      addressFull: /endere.o\s*completo|full\s*address/i,
+      complement: /complemento/i,
+      cep: /cep|zip|postal/i,
+      city: /cidade|city/i,
+      neighborhood: /bairro/i,
+    },
+  },
+];
+
+const EMPTY_MAPPING: ColumnMapping = {
+  cep: '',
+  addressFull: '',
+  street: '',
+  number: '',
+  complement: '',
+  neighborhood: '',
+  city: '',
+  state: '',
+  lat: '',
+  lng: '',
+};
+
+// ── Helpers de Parsing ─────────────────────────────────────────────────────
+
+/**
+ * Separa o campo "Destination Address" da Shopee nos três componentes.
+ *
+ * Padrão: "Rua X, numero, complemento_ou_observacao"
+ *
+ * Regras (alinhadas com dados reais da planilha):
+ *  - 1ª vírgula delimita o fim do logradouro
+ *  - Segmento entre 1ª e 2ª vírgula é sempre o número da residência
+ *  - Tudo após a 2ª vírgula vai para complemento (inclui observações do entregador)
+ *  - Sem vírgulas: usa regex para separar rua e número pelo último bloco numérico
+ */
+function parseAddressFull(address: string): { street: string; number: string; complement: string } {
+  const trimmed = address.trim();
+
+  // Caso padrão Shopee: "Rua X, 123" ou "Rua X, 123, Complemento"
+  const parts = trimmed.split(',');
+  if (parts.length >= 2) {
+    const street = parts[0].trim();
+    const number = parts[1].trim();
+    // Tudo a partir do índice 2 é complemento (apto, bloco, observação, etc.)
+    const complement = parts.slice(2).join(',').trim();
+    return { street, number, complement };
+  }
+
+  // Sem vírgula: tenta separar pelo último bloco numérico no final
+  // Ex: "Rua das Flores 123" → rua="Rua das Flores", numero="123"
+  const spaceMatch = trimmed.match(/^(.*\D)\s+(\d+\S*)$/);
+  if (spaceMatch) {
+    return { street: spaceMatch[1].trim(), number: spaceMatch[2].trim(), complement: '' };
+  }
+
+  return { street: trimmed, number: '', complement: '' };
+}
+
+function buildMappingFromTemplate(cols: string[], template: PlatformTemplate): ColumnMapping {
+  const findCol = (pattern?: RegExp) =>
+    pattern ? cols.find((c) => pattern.test(c.trim())) ?? '' : '';
+  return {
+    cep: findCol(template.columnPatterns.cep),
+    addressFull: findCol(template.columnPatterns.addressFull),
+    street: findCol(template.columnPatterns.street),
+    number: findCol(template.columnPatterns.number),
+    complement: findCol(template.columnPatterns.complement),
+    neighborhood: findCol(template.columnPatterns.neighborhood),
+    city: findCol(template.columnPatterns.city),
+    state: findCol(template.columnPatterns.state),
+    lat: findCol(template.columnPatterns.lat),
+    lng: findCol(template.columnPatterns.lng),
+  };
+}
+
+function autoDetectGeneric(cols: string[]): ColumnMapping {
+  const find = (pat: RegExp) => cols.find((c) => pat.test(c.trim())) ?? '';
+  return {
+    cep: find(/cep|zip|zipcode|postal|c\.e\.p/i),
+    addressFull: find(/endere.o\s*completo|full\s*address|destination\s*address/i),
+    street: find(/^(rua|street|logradouro|endereco|endereço|destino_rua)$/i),
+    number: find(/^(numero|número|num|nº|number|nro|casa|n\.)$/i),
+    complement: find(/complemento|comp\b|apto|apt\b|bloco/i),
+    neighborhood: find(/bairro|neighborhood|district/i),
+    city: find(/^(cidade|city|municipio|município)$/i),
+    state: find(/^(uf|estado|state)$/i),
+    lat: find(/^(lat|latitude)$/i),
+    lng: find(/^(lng|lon|longitude|long)$/i),
+  };
+}
+
+// ── Integração Groq ────────────────────────────────────────────────────────
+const GROQ_API_KEY =
+  typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_GROQ_API_KEY : undefined;
+
+async function groqChat(prompt: string): Promise<string> {
+  if (!GROQ_API_KEY) throw new Error('NEXT_PUBLIC_GROQ_API_KEY não configurada');
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${GROQ_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.1-8b-instant',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0,
+      max_tokens: 512,
+    }),
+  });
+  if (!res.ok) throw new Error(`Groq HTTP ${res.status}`);
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? '';
+}
+
+async function groqMapColumns(headers: string[]): Promise<Partial<ColumnMapping>> {
+  const prompt = `Você é um assistente de mapeamento de colunas para um app de entregas brasileiro.
+Colunas disponíveis: ${JSON.stringify(headers)}
+
+Retorne APENAS um JSON válido (sem markdown) mapeando cada campo ao nome exato da coluna:
+{"cep":"","addressFull":"","street":"","number":"","complement":"","neighborhood":"","city":"","state":"","lat":"","lng":""}
+
+- cep: código postal/CEP
+- addressFull: endereço completo (rua + número na mesma coluna)
+- street: somente o logradouro/rua
+- number: somente o número do imóvel
+- complement: complemento (apto, bloco, etc.)
+- neighborhood: bairro
+- city: cidade
+- state: UF/estado
+- lat: latitude
+- lng: longitude
+Use "" se não encontrar.`;
+  try {
+    const raw = await groqChat(prompt);
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (match) return JSON.parse(match[0]) as Partial<ColumnMapping>;
+  } catch {}
+  return {};
+}
+
+async function groqParseRow(row: Record<string, unknown>): Promise<Partial<ImportedAddress> | null> {
+  const prompt = `Extraia os campos de endereço brasileiro desta linha de planilha.
+Dados: ${JSON.stringify(row)}
+
+Retorne APENAS um JSON válido:
+{"cep":"","street":"","number":"","complement":"","neighborhood":"","city":"","state":""}
+Use "" para campos ausentes.`;
+  try {
+    const raw = await groqChat(prompt);
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (match) return JSON.parse(match[0]) as Partial<ImportedAddress>;
+  } catch {}
+  return null;
+}
+
+// ── Componente Principal ───────────────────────────────────────────────────
 export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImporterProps) {
   const [step, setStep] = useState<'upload' | 'mapping' | 'preview'>('upload');
   const [fileName, setFileName] = useState('');
   const [headers, setHeaders] = useState<string[]>([]);
-  const [rawRows, setRawRows] = useState<Record<string, any>[]>([]);
-  const [mapping, setMapping] = useState<ColumnMapping>({
-    cep: '',
-    street: '',
-    number: '',
-    complement: '',
-    neighborhood: '',
-    city: '',
-    state: '',
-  });
+  const [rawRows, setRawRows] = useState<Record<string, unknown>[]>([]);
+  const [detectedPlatform, setDetectedPlatform] = useState<DetectedPlatform | null>(null);
+  const [isGroqMapping, setIsGroqMapping] = useState(false);
+  const [mapping, setMapping] = useState<ColumnMapping>(EMPTY_MAPPING);
 
   const [parsedItems, setParsedItems] = useState<
     (ImportedAddress & { selected: boolean; valid: boolean; rawRowIndex: number })[]
@@ -55,26 +264,17 @@ export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImpor
 
   const [enriching, setEnriching] = useState(false);
   const [enrichProgress, setEnrichProgress] = useState(0);
+  const [enrichStatus, setEnrichStatus] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Auto-Detect Matching Headers ──────────────────────────────────────────
-  const autoDetectColumns = (cols: string[]) => {
-    const findCol = (pattern: RegExp) => cols.find((c) => pattern.test(c.trim())) || '';
+  // Contagem de selecionados memoizada — evita 3× computações idênticas por render
+  const selectedCount = useMemo(
+    () => parsedItems.filter((i) => i.selected).length,
+    [parsedItems],
+  );
 
-    const newMap: ColumnMapping = {
-      cep: findCol(/cep|zip|codigo_postal|postal_code/i),
-      street: findCol(/rua|street|logradouro|endereco|endereço|address|destino_rua/i),
-      number: findCol(/numero|número|num|nº|number|nro|casa/i),
-      complement: findCol(/complemento|comp|apto|apt|bloco/i),
-      neighborhood: findCol(/bairro|neighborhood|district|bair/i),
-      city: findCol(/cidade|city|municipio|município/i),
-      state: findCol(/^uf$|estado|state/i),
-    };
-
-    setMapping(newMap);
-  };
-
-  // ── Handle File Reading ───────────────────────────────────────────────────
+  // ── Leitura do arquivo ───────────────────────────────────────────────────
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -82,26 +282,67 @@ export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImpor
     setFileName(file.name);
     const reader = new FileReader();
 
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsName = wb.SheetNames[0];
-        const ws = wb.Sheets[wsName];
-
-        const jsonRows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' });
 
         if (jsonRows.length === 0) {
           alert('A planilha selecionada está vazia.');
           return;
         }
 
-        const detectedHeaders = Object.keys(jsonRows[0]);
-        setHeaders(detectedHeaders);
+        const cols = Object.keys(jsonRows[0]);
+        setHeaders(cols);
         setRawRows(jsonRows);
-        autoDetectColumns(detectedHeaders);
-        setStep('mapping');
-      } catch (err) {
+
+        // Camada 1 — Template de plataforma conhecida
+        const matched = PLATFORM_TEMPLATES.find((t) =>
+          t.fingerprint.every((fp) => cols.some((c) => fp.test(c.trim()))),
+        );
+        if (matched) {
+          setDetectedPlatform({ name: matched.name, emoji: matched.emoji, color: matched.color });
+          setMapping(buildMappingFromTemplate(cols, matched));
+          setStep('mapping');
+          return;
+        }
+
+        // Camada 2 — Auto-detect genérico
+        const generic = autoDetectGeneric(cols);
+        const hasMinimum = generic.cep || generic.addressFull || generic.street;
+        if (hasMinimum) {
+          setDetectedPlatform(null);
+          setMapping(generic);
+          setStep('mapping');
+          return;
+        }
+
+        // Camada 3 — Groq como fallback
+        if (GROQ_API_KEY) {
+          setIsGroqMapping(true);
+          setMapping(generic);
+          setStep('mapping');
+          try {
+            const groqResult = await groqMapColumns(cols);
+            setMapping((prev) => ({
+              ...prev,
+              ...Object.fromEntries(
+                Object.entries(groqResult).map(([k, v]) => [k, v ?? '']),
+              ),
+            }));
+            setDetectedPlatform({ name: 'IA mapeou', emoji: '🤖', color: '#7C3AED' });
+          } catch {
+            /* usuário ajusta manualmente */
+          }
+          setIsGroqMapping(false);
+        } else {
+          setDetectedPlatform(null);
+          setMapping(generic);
+          setStep('mapping');
+        }
+      } catch {
         alert('Erro ao ler a planilha. Certifique-se de que é um arquivo CSV ou XLSX válido.');
       }
     };
@@ -109,122 +350,185 @@ export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImpor
     reader.readAsBinaryString(file);
   };
 
-  // ── Process Rows based on Mapping ─────────────────────────────────────────
+  // ── Processamento das linhas após confirmar mapeamento ───────────────────
   const handleConfirmMapping = async () => {
     setStep('preview');
     setEnriching(true);
     setEnrichProgress(0);
 
-    const items: (ImportedAddress & { selected: boolean; valid: boolean; rawRowIndex: number })[] =
-      [];
+    type ParsedItem = ImportedAddress & { selected: boolean; valid: boolean; rawRowIndex: number };
 
-    for (let i = 0; i < rawRows.length; i++) {
-      const row = rawRows[i];
-      let rawCep = String(row[mapping.cep] || '');
-      let cleanCep = onlyNumbers(rawCep).slice(0, 8);
+    // Cache de CEP — evita chamadas repetidas para o mesmo CEP (comum em condomínios)
+    const cepCache = new Map<
+      string,
+      { street: string; neighborhood: string; city: string; state: string; lat: number; lng: number }
+    >();
 
-      let street = String(row[mapping.street] || '').trim();
-      let number = String(row[mapping.number] || '').trim();
-      let complement = String(row[mapping.complement] || '').trim();
-      let neighborhood = String(row[mapping.neighborhood] || '').trim();
-      let city = String(row[mapping.city] || '').trim();
-      let state = String(row[mapping.state] || '').trim().toUpperCase();
+    const processRow = async (row: Record<string, unknown>, index: number): Promise<ParsedItem> => {
+      let rawCep = onlyNumbers(String(row[mapping.cep] ?? '')).slice(0, 8);
+      let street = '';
+      let number = '';
+      let complement = String(row[mapping.complement] ?? '').trim();
+      let neighborhood = String(row[mapping.neighborhood] ?? '').trim();
+      let city = String(row[mapping.city] ?? '').trim();
+      let state = String(row[mapping.state] ?? '')
+        .trim()
+        .toUpperCase()
+        .slice(0, 2);
+      let lat = mapping.lat ? parseFloat(String(row[mapping.lat] ?? '0')) || 0 : 0;
+      let lng = mapping.lng ? parseFloat(String(row[mapping.lng] ?? '0')) || 0 : 0;
 
-      let lat = 0;
-      let lng = 0;
+      if (mapping.addressFull && row[mapping.addressFull]) {
+        const parsed = parseAddressFull(String(row[mapping.addressFull]));
+        street = parsed.street;
+        number = parsed.number;
+        if (!complement && parsed.complement) complement = parsed.complement;
+      } else {
+        street = String(row[mapping.street] ?? '').trim();
+        number = String(row[mapping.number] ?? '').trim();
+      }
 
-      // Se temos CEP válido (8 dígitos), tenta auto-completar dados faltantes e buscar coordenadas
-      if (cleanCep.length === 8) {
-        try {
-          const cepRes = await fetch(`https://cep.awesomeapi.com.br/json/${cleanCep}`);
-          if (cepRes.ok) {
-            const cepData = await cepRes.json();
-            street = street || cepData.address || '';
-            neighborhood = neighborhood || cepData.district || '';
-            city = city || cepData.city || '';
-            state = state || cepData.state || '';
-            if (cepData.lat && cepData.lng) {
-              lat = parseFloat(cepData.lat) || 0;
-              lng = parseFloat(cepData.lng) || 0;
+      if (rawCep.length === 8) {
+        const hit = cepCache.get(rawCep);
+        if (hit) {
+          // Reutiliza resultado já buscado para o mesmo CEP
+          street = street || hit.street;
+          neighborhood = neighborhood || hit.neighborhood;
+          city = city || hit.city;
+          state = state || hit.state;
+          if (!lat || !lng) { lat = hit.lat; lng = hit.lng; }
+        } else {
+          try {
+            const cepRes = await fetch(`https://cep.awesomeapi.com.br/json/${rawCep}`);
+            if (cepRes.ok) {
+              const d = await cepRes.json();
+              const entry = {
+                street: d.address || '',
+                neighborhood: d.district || '',
+                city: d.city || '',
+                state: d.state || '',
+                lat: parseFloat(d.lat) || 0,
+                lng: parseFloat(d.lng) || 0,
+              };
+              cepCache.set(rawCep, entry);
+              street = street || entry.street;
+              neighborhood = neighborhood || entry.neighborhood;
+              city = city || entry.city;
+              state = state || entry.state;
+              if (!lat || !lng) { lat = entry.lat; lng = entry.lng; }
             }
-          }
-        } catch {
-          // Fallback se a AwesomeAPI falhar
-          if (!street || !city || !state || !neighborhood) {
+          } catch {
             try {
-              const res = await api.cep.lookup(cleanCep);
+              const res = await api.cep.lookup(rawCep);
               if (res) {
-                street = street || res.street;
-                neighborhood = neighborhood || res.neighborhood;
-                city = city || res.city;
-                state = state || res.state;
+                const entry = {
+                  street: res.street,
+                  neighborhood: res.neighborhood,
+                  city: res.city,
+                  state: res.state,
+                  lat: 0,
+                  lng: 0,
+                };
+                cepCache.set(rawCep, entry);
+                street = street || entry.street;
+                neighborhood = neighborhood || entry.neighborhood;
+                city = city || entry.city;
+                state = state || entry.state;
               }
             } catch {}
           }
         }
       }
 
-      const isValid = (cleanCep.length === 8 || (street.length > 0 && city.length > 0)) && number.length > 0;
+      const isValid =
+        (rawCep.length === 8 || (street.length > 0 && city.length > 0)) && number.length > 0;
 
-      items.push({
-        cep: cleanCep,
-        street,
-        number,
-        complement,
-        neighborhood,
-        city,
-        state,
-        lat,
-        lng,
-        selected: isValid,
-        valid: isValid,
-        rawRowIndex: i,
-      });
+      if (!isValid && GROQ_API_KEY) {
+        try {
+          const groqResult = await groqParseRow(row);
+          if (groqResult) {
+            rawCep = groqResult.cep ? onlyNumbers(groqResult.cep).slice(0, 8) : rawCep;
+            street = groqResult.street || street;
+            number = groqResult.number || number;
+            neighborhood = groqResult.neighborhood || neighborhood;
+            city = groqResult.city || city;
+            state = groqResult.state?.toUpperCase().slice(0, 2) || state;
+          }
+        } catch {}
+      }
 
-      setEnrichProgress(Math.round(((i + 1) / rawRows.length) * 100));
+      const finalValid =
+        (rawCep.length === 8 || (street.length > 0 && city.length > 0)) && number.length > 0;
+
+      return {
+        cep: rawCep, street, number, complement, neighborhood, city, state, lat, lng,
+        selected: finalValid, valid: finalValid, rawRowIndex: index,
+      };
+    };
+
+    // Lotes de 5 paralelos — reduz tempo de ~30s para ~6s para 84 entregas
+    const BATCH_SIZE = 5;
+    const allItems: ParsedItem[] = [];
+
+    for (let batchStart = 0; batchStart < rawRows.length; batchStart += BATCH_SIZE) {
+      const batchEnd = Math.min(batchStart + BATCH_SIZE, rawRows.length);
+      setEnrichStatus(`Processando ${batchStart + 1}–${batchEnd} de ${rawRows.length}…`);
+
+      const batchResults = await Promise.all(
+        rawRows.slice(batchStart, batchEnd).map((row, i) => processRow(row, batchStart + i)),
+      );
+      allItems.push(...batchResults);
+      setEnrichProgress(Math.round((batchEnd / rawRows.length) * 100));
+
+      // Delay entre lotes para respeitar rate limits da AwesomeAPI
+      if (batchEnd < rawRows.length) {
+        await new Promise<void>((r) => setTimeout(r, 150));
+      }
     }
 
-    setParsedItems(items);
+    setParsedItems(allItems);
     setEnriching(false);
+    setEnrichStatus('');
   };
 
-  // ── Toggle Item Selection ────────────────────────────────────────────────
-  const toggleItemSelect = (index: number) => {
+  // ── Seleção na preview ───────────────────────────────────────────────────
+  const toggleItemSelect = useCallback((rawRowIndex: number) => {
     setParsedItems((prev) =>
-      prev.map((item, idx) => (idx === index ? { ...item, selected: !item.selected } : item)),
+      prev.map((item) => (item.rawRowIndex === rawRowIndex ? { ...item, selected: !item.selected } : item)),
     );
-  };
+  }, []);
 
-  const toggleSelectAll = (select: boolean) => {
+  const toggleSelectAll = useCallback((select: boolean) => {
     setParsedItems((prev) => prev.map((item) => ({ ...item, selected: select && item.valid })));
-  };
+  }, []);
 
-  // ── Final Import Trigger ─────────────────────────────────────────────────
-  const handleFinalImport = () => {
-    const selectedStops = parsedItems
+  // ── Importação final ─────────────────────────────────────────────────────
+  const handleFinalImport = useCallback(() => {
+    const selected = parsedItems
       .filter((i) => i.selected)
-      .map(({ selected, valid, rawRowIndex, ...stop }) => stop);
+      .map(({ selected: _s, valid: _v, rawRowIndex: _r, ...stop }) => stop);
 
-    if (selectedStops.length === 0) {
+    if (selected.length === 0) {
       alert('Selecione ao menos 1 endereço válido para importar.');
       return;
     }
 
-    onImportStops(selectedStops);
+    onImportStops(selected);
     onClose();
-  };
+  }, [parsedItems, onImportStops, onClose]);
 
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
       <div
         className="w-full max-w-lg rounded-3xl p-5 space-y-4 max-h-[90vh] flex flex-col relative overflow-hidden"
         style={{
-          background: 'rgba(22, 22, 42, 0.95)',
+          background: 'rgba(22, 22, 42, 0.97)',
           border: '1px solid rgba(255, 255, 255, 0.12)',
           boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
         }}
       >
-        {/* Header */}
+        {/* ── Header ── */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10 flex-shrink-0">
           <div className="flex items-center gap-2.5">
             <div
@@ -238,14 +542,14 @@ export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImpor
                 Importar Planilha de Entregas
               </h2>
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Suporta XLSX, XLS e CSV de qualquer plataforma
+                Shopee, Mercado Livre, iFood e planilhas genéricas
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl press-effect text-xs text-muted hover:text-white"
-            style={{ background: 'rgba(255,255,255,0.05)' }}
+            className="p-1.5 rounded-xl press-effect text-xs"
+            style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)' }}
           >
             ✕
           </button>
@@ -256,10 +560,17 @@ export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImpor
           <div className="space-y-5 py-4 flex-1 flex flex-col justify-center">
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-brand-500/40 hover:border-brand-400 rounded-3xl p-8 text-center cursor-pointer transition-all duration-200 press-effect space-y-3"
-              style={{ background: 'linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(79,70,229,0.04) 100%)' }}
+              className="border-2 border-dashed rounded-3xl p-8 text-center cursor-pointer transition-all duration-200 press-effect space-y-3"
+              style={{
+                borderColor: 'rgba(124,58,237,0.4)',
+                background:
+                  'linear-gradient(135deg, rgba(124,58,237,0.08) 0%, rgba(79,70,229,0.04) 100%)',
+              }}
             >
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto bg-brand-500/20 text-brand-300">
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto"
+                style={{ background: 'rgba(124,58,237,0.2)', color: '#A78BFA' }}
+              >
                 <SpreadsheetIcon size={36} />
               </div>
               <div>
@@ -270,10 +581,38 @@ export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImpor
                   Formatos aceitos: <strong>.xlsx, .xls, .csv</strong>
                 </p>
               </div>
+
+              {/* Plataformas suportadas */}
+              <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
+                {PLATFORM_TEMPLATES.map((t) => (
+                  <span
+                    key={t.name}
+                    className="text-[11px] px-2.5 py-1 rounded-full font-medium"
+                    style={{
+                      background: `${t.color}22`,
+                      color: t.color === '#F5A623' ? '#F5A623' : t.color,
+                      border: `1px solid ${t.color}44`,
+                    }}
+                  >
+                    {t.emoji} {t.name}
+                  </span>
+                ))}
+                <span
+                  className="text-[11px] px-2.5 py-1 rounded-full font-medium"
+                  style={{
+                    background: 'rgba(124,58,237,0.15)',
+                    color: '#A78BFA',
+                    border: '1px solid rgba(124,58,237,0.3)',
+                  }}
+                >
+                  🤖 Genérica (IA)
+                </span>
+              </div>
+
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".xlsx, .xls, .csv"
+                accept=".xlsx,.xls,.csv"
                 onChange={handleFileUpload}
                 className="hidden"
               />
@@ -281,69 +620,117 @@ export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImpor
           </div>
         )}
 
-        {/* ── STEP 2: COLUMN MAPPING ── */}
+        {/* ── STEP 2: MAPEAMENTO DE COLUNAS ── */}
         {step === 'mapping' && (
-          <div className="space-y-4 flex-1 overflow-y-auto pr-1">
+          <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+            {/* Info do arquivo */}
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-brand-300 flex items-center gap-1.5">
-                <SpreadsheetIcon size={16} />
-                {fileName} ({rawRows.length} linhas encontradas)
+              <span className="text-xs font-semibold flex items-center gap-1.5" style={{ color: '#A78BFA' }}>
+                <SpreadsheetIcon size={14} />
+                {fileName} ({rawRows.length} linhas)
               </span>
               <button
                 onClick={() => setStep('upload')}
-                className="text-xs text-muted hover:text-white underline"
+                className="text-xs underline"
+                style={{ color: 'var(--text-muted)' }}
               >
                 Trocar arquivo
               </button>
             </div>
 
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Verifique a correspondência das colunas da sua planilha com os campos do RotaFácil:
-            </p>
+            {/* Badge da plataforma detectada */}
+            {isGroqMapping ? (
+              <div
+                className="flex items-center gap-2 px-3 py-2 rounded-xl"
+                style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.25)' }}
+              >
+                <SpinnerIcon size={14} className="animate-spin" style={{ color: '#A78BFA' }} />
+                <span className="text-xs font-medium" style={{ color: '#A78BFA' }}>
+                  IA analisando as colunas da planilha…
+                </span>
+              </div>
+            ) : detectedPlatform ? (
+              <div
+                className="flex items-center gap-2 px-3 py-2 rounded-xl animate-fade-up"
+                style={{
+                  background: `${detectedPlatform.color}18`,
+                  border: `1px solid ${detectedPlatform.color}40`,
+                }}
+              >
+                <span className="text-base">{detectedPlatform.emoji}</span>
+                <div>
+                  <p className="text-xs font-bold" style={{ color: detectedPlatform.color }}>
+                    {detectedPlatform.name} detectada!
+                  </p>
+                  <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                    Colunas mapeadas automaticamente. Revise abaixo se necessário.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Verifique a correspondência das colunas da sua planilha:
+              </p>
+            )}
 
-            {/* Form de Mapeamento */}
-            <div className="space-y-2.5 text-xs">
+            {/* Formulário de Mapeamento */}
+            <div className="space-y-2 text-xs">
               {[
                 { label: 'CEP *', key: 'cep', req: true },
+                { label: 'Endereço Completo (rua + nº juntos)', key: 'addressFull', req: false },
                 { label: 'Número *', key: 'number', req: true },
                 { label: 'Rua / Logradouro', key: 'street', req: false },
                 { label: 'Bairro', key: 'neighborhood', req: false },
                 { label: 'Cidade', key: 'city', req: false },
                 { label: 'UF / Estado', key: 'state', req: false },
                 { label: 'Complemento', key: 'complement', req: false },
-              ].map((field) => (
-                <div
-                  key={field.key}
-                  className="flex items-center justify-between p-2.5 rounded-xl"
-                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
-                >
-                  <span className="font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {field.label}
-                  </span>
-                  <select
-                    value={(mapping as any)[field.key]}
-                    onChange={(e) =>
-                      setMapping((prev) => ({ ...prev, [field.key]: e.target.value }))
-                    }
-                    className="max-w-[200px] text-xs rounded-lg px-2.5 py-1.5 focus:outline-none truncate"
+                { label: 'Latitude', key: 'lat', req: false },
+                { label: 'Longitude', key: 'lng', req: false },
+              ].map((field) => {
+                const value = (mapping as unknown as Record<string, string>)[field.key] ?? '';
+                const isMapped = !!value;
+                return (
+                  <div
+                    key={field.key}
+                    className="flex items-center justify-between p-2.5 rounded-xl transition-all"
                     style={{
-                      background: '#1E1E38',
-                      border: '1px solid rgba(255,255,255,0.15)',
-                      color: (mapping as any)[field.key] ? '#A78BFA' : 'var(--text-muted)',
+                      background: isMapped
+                        ? 'rgba(124,58,237,0.08)'
+                        : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${isMapped ? 'rgba(124,58,237,0.25)' : 'rgba(255,255,255,0.06)'}`,
                     }}
                   >
-                    <option value="">-- Não mapear --</option>
-                    {headers.map((h) => (
-                      <option key={h} value={h}>
-                        {h}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+                    <span
+                      className="font-medium truncate mr-2 max-w-[130px]"
+                      style={{ color: isMapped ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+                    >
+                      {field.label}
+                    </span>
+                    <select
+                      value={value}
+                      onChange={(e) =>
+                        setMapping((prev) => ({ ...prev, [field.key]: e.target.value }))
+                      }
+                      className="max-w-[180px] text-xs rounded-lg px-2.5 py-1.5 focus:outline-none truncate"
+                      style={{
+                        background: '#1E1E38',
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        color: isMapped ? '#A78BFA' : 'var(--text-muted)',
+                      }}
+                    >
+                      <option value="">-- Não mapear --</option>
+                      {headers.map((h) => (
+                        <option key={h} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
             </div>
 
-            <Button size="lg" className="w-full mt-4" onClick={handleConfirmMapping}>
+            <Button size="lg" className="w-full mt-2" onClick={handleConfirmMapping}>
               Analisar e pré-visualizar entregas →
             </Button>
           </div>
@@ -353,59 +740,83 @@ export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImpor
         {step === 'preview' && (
           <div className="space-y-4 flex-1 flex flex-col min-h-0">
             {enriching ? (
-              <div className="py-12 text-center space-y-3">
-                <SpinnerIcon size={32} className="text-brand-500 mx-auto" />
-                <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
-                  Processando endereços e validando CEPs... ({enrichProgress}%)
-                </p>
-                <div className="w-48 h-2 bg-surface-3 rounded-full mx-auto overflow-hidden">
+              <div className="py-12 text-center space-y-4">
+                <SpinnerIcon
+                  size={32}
+                  className="mx-auto animate-spin"
+                  style={{ color: '#A78BFA' }}
+                />
+                <div className="space-y-1">
+                  <p className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
+                    Processando entregas… ({enrichProgress}%)
+                  </p>
+                  {enrichStatus && (
+                    <p className="text-xs animate-pulse-soft" style={{ color: 'var(--text-muted)' }}>
+                      {enrichStatus}
+                    </p>
+                  )}
+                </div>
+                <div
+                  className="w-52 h-2 rounded-full mx-auto overflow-hidden"
+                  style={{ background: 'var(--surface-3)' }}
+                >
                   <div
-                    className="h-full bg-brand-500 transition-all duration-200"
-                    style={{ width: `${enrichProgress}%` }}
+                    className="h-full transition-all duration-300"
+                    style={{
+                      width: `${enrichProgress}%`,
+                      background: 'linear-gradient(90deg, #7C3AED, #4F46E5)',
+                    }}
                   />
                 </div>
               </div>
             ) : (
               <>
+                {/* Resumo */}
                 <div className="flex items-center justify-between text-xs flex-shrink-0">
-                  <span className="font-semibold text-brand-300">
-                    Conferência ({parsedItems.filter((i) => i.selected).length} selecionadas de{' '}
-                    {parsedItems.length})
+                  <span className="font-semibold" style={{ color: '#A78BFA' }}>
+                    Conferência ({selectedCount} selecionadas de {parsedItems.length})
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <button
                       onClick={() => toggleSelectAll(true)}
-                      className="text-xs text-brand-400 hover:underline"
+                      className="text-xs hover:underline"
+                      style={{ color: '#A78BFA' }}
                     >
                       Marcar todas
                     </button>
                     <button
                       onClick={() => toggleSelectAll(false)}
-                      className="text-xs text-muted hover:underline"
+                      className="text-xs hover:underline"
+                      style={{ color: 'var(--text-muted)' }}
                     >
                       Desmarcar
                     </button>
                   </div>
                 </div>
 
-                {/* Tabela de Pre visualização */}
+                {/* Lista de itens */}
                 <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[200px] max-h-[300px]">
-                  {parsedItems.map((item, idx) => (
+                  {parsedItems.map((item) => (
                     <div
-                      key={idx}
-                      onClick={() => item.valid && toggleItemSelect(idx)}
+                      key={item.rawRowIndex}
+                      onClick={() => item.valid && toggleItemSelect(item.rawRowIndex)}
                       className={`p-2.5 rounded-xl flex items-start gap-3 border transition-all cursor-pointer ${
                         item.selected
-                          ? 'bg-brand-500/10 border-brand-500/40'
-                          : 'bg-white/5 border-white/5 opacity-60'
+                          ? 'border-purple-500/40'
+                          : 'border-white/5 opacity-60'
                       }`}
+                      style={{
+                        background: item.selected
+                          ? 'rgba(124,58,237,0.10)'
+                          : 'rgba(255,255,255,0.03)',
+                      }}
                     >
                       <input
                         type="checkbox"
                         checked={item.selected}
                         disabled={!item.valid}
-                        onChange={() => toggleItemSelect(idx)}
-                        className="mt-1 rounded accent-brand-500"
+                        onChange={() => toggleItemSelect(item.rawRowIndex)}
+                        className="mt-1 rounded accent-purple-500"
                       />
                       <div className="flex-1 min-w-0 text-xs">
                         <p className="font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
@@ -414,11 +825,21 @@ export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImpor
                         </p>
                         <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
                           {item.neighborhood && `${item.neighborhood}, `}
-                          {item.city} {item.state && `— ${item.state}`} {item.cep && `(CEP: ${formatCep(item.cep)})`}
+                          {item.city}
+                          {item.state && ` — ${item.state}`}
+                          {item.cep && ` (CEP: ${formatCep(item.cep)})`}
                         </p>
+                        {(item.lat !== 0 || item.lng !== 0) && (
+                          <p className="text-[10px] mt-0.5" style={{ color: '#10D9A0' }}>
+                            📍 Coordenadas disponíveis
+                          </p>
+                        )}
                       </div>
                       {!item.valid && (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-300 font-semibold flex-shrink-0">
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded font-semibold flex-shrink-0"
+                          style={{ background: 'rgba(239,68,68,0.2)', color: '#FCA5A5' }}
+                        >
                           Incompleto
                         </span>
                       )}
@@ -426,8 +847,11 @@ export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImpor
                   ))}
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-2 pt-2 border-t border-white/10 flex-shrink-0">
+                {/* Ações */}
+                <div
+                  className="flex gap-2 pt-2 border-t flex-shrink-0"
+                  style={{ borderColor: 'rgba(255,255,255,0.08)' }}
+                >
                   <button
                     onClick={() => setStep('mapping')}
                     className="px-4 py-2.5 rounded-xl text-xs font-semibold press-effect"
@@ -435,15 +859,14 @@ export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImpor
                   >
                     Voltar
                   </button>
-
                   <Button
                     size="lg"
                     className="flex-1"
                     onClick={handleFinalImport}
-                    disabled={parsedItems.filter((i) => i.selected).length === 0}
+                    disabled={selectedCount === 0}
                   >
                     <CheckIcon className="mr-1.5" size={16} />
-                    Adicionar {parsedItems.filter((i) => i.selected).length} paradas à rota
+                    Adicionar {selectedCount} paradas à rota
                   </Button>
                 </div>
               </>
