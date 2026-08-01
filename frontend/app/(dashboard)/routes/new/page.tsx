@@ -85,10 +85,17 @@ async function geocodeAddress(
 
   const cleanCep = onlyNumbers(addr.cep).slice(0, 8);
 
+  // 0. Se o endereço já possui coordenadas válidas (ex: vindas da planilha Shopee/iFood), retorna diretamente
+  if (addr.lat && addr.lng && (addr.lat !== 0 || addr.lng !== 0) && !isNaN(addr.lat) && !isNaN(addr.lng)) {
+    return { lat: addr.lat, lng: addr.lng };
+  }
+
   // 1. Tenta geocodificação direta por CEP via AwesomeAPI (rápida, precisa para CEPs do Brasil)
   if (cleanCep.length === 8) {
     try {
-      const resCep = await fetch(`https://cep.awesomeapi.com.br/json/${cleanCep}`);
+      const resCep = await fetch(`https://cep.awesomeapi.com.br/json/${cleanCep}`, {
+        signal: AbortSignal.timeout(2000),
+      });
       if (resCep.ok) {
         const dataCep = await resCep.json();
         if (dataCep.lat && dataCep.lng) {
@@ -122,7 +129,10 @@ async function geocodeAddress(
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
-        { headers: { 'User-Agent': 'RotaFacil/1.0' } },
+        {
+          headers: { 'User-Agent': 'RotaFacil/1.0' },
+          signal: AbortSignal.timeout(3000),
+        },
       );
       if (res.ok) {
         const data = await res.json();
@@ -143,7 +153,10 @@ async function geocodeAddress(
       const cityQuery = `${cityToUse}, ${stateToUse || 'SP'}, Brasil`;
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityQuery)}&limit=1`,
-        { headers: { 'User-Agent': 'RotaFacil/1.0' } },
+        {
+          headers: { 'User-Agent': 'RotaFacil/1.0' },
+          signal: AbortSignal.timeout(3000),
+        },
       );
       if (res.ok) {
         const data = await res.json();
@@ -247,28 +260,42 @@ export default function NewRoutePage() {
         const itemCity = stop.city || contextCity;
         const itemState = stop.state || contextState;
 
-        let coords = await geocodeAddress(
-          { ...stop, city: itemCity, state: itemState },
-          contextCity,
-          contextState,
-        );
+        let coords: { lat: number; lng: number };
 
-        // Validação contra Outliers (se a parada ficou > 60km do ponto de partida)
-        if (startLat !== null && startLng !== null) {
-          const distFromStart = haversineDist(startLat, startLng, coords.lat, coords.lng);
-          if (distFromStart > 60) {
-            const cityCenterCoords = await geocodeAddress(
-              { ...stop, street: '', cep: '', city: itemCity, state: itemState },
-              itemCity,
-              itemState,
+        // Se a parada já veio com latitude/longitude da planilha, utiliza diretamente sem chamadas remotas
+        if (stop.lat && stop.lng && (stop.lat !== 0 || stop.lng !== 0) && !isNaN(stop.lat) && !isNaN(stop.lng)) {
+          coords = { lat: stop.lat, lng: stop.lng };
+        } else {
+          try {
+            coords = await geocodeAddress(
+              { ...stop, city: itemCity, state: itemState },
+              contextCity,
+              contextState,
             );
-            const distCityCenter = haversineDist(startLat, startLng, cityCenterCoords.lat, cityCenterCoords.lng);
-            if (distCityCenter <= 60) {
-              coords = cityCenterCoords;
-            } else {
-              coords = { lat: startLat, lng: startLng };
+
+            // Validação contra Outliers (se a parada ficou > 60km do ponto de partida)
+            if (startLat !== null && startLng !== null) {
+              const distFromStart = haversineDist(startLat, startLng, coords.lat, coords.lng);
+              if (distFromStart > 60) {
+                const cityCenterCoords = await geocodeAddress(
+                  { ...stop, street: '', cep: '', city: itemCity, state: itemState },
+                  itemCity,
+                  itemState,
+                );
+                const distCityCenter = haversineDist(startLat, startLng, cityCenterCoords.lat, cityCenterCoords.lng);
+                if (distCityCenter <= 60) {
+                  coords = cityCenterCoords;
+                } else {
+                  coords = { lat: startLat, lng: startLng };
+                }
+              }
             }
+          } catch {
+            coords = { lat: startLat ?? -23.5505, lng: startLng ?? -46.6333 };
           }
+
+          // Delay de 50ms apenas se realmente precisou geocodificar
+          await new Promise((resolve) => setTimeout(resolve, 50));
         }
 
         processed.push({
@@ -277,9 +304,6 @@ export default function NewRoutePage() {
           state: itemState,
           ...coords,
         });
-
-        // Delay de 150ms entre geocodificações para evitar estouro de limite de requisições
-        await new Promise((resolve) => setTimeout(resolve, 150));
       }
 
       setStops((prev) => {

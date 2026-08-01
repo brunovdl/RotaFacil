@@ -388,7 +388,11 @@ export function SpreadsheetImporter({ onImportStops, onClose }: SpreadsheetImpor
         number = String(row[mapping.number] ?? '').trim();
       }
 
-      if (rawCep.length === 8) {
+      // Só faz chamada HTTP externa à API de CEP se faltar informação essencial de endereço/coordenada da planilha
+      const needsCepLookup =
+        rawCep.length === 8 && (!street || !city || !neighborhood || (!lat && !lng));
+
+      if (needsCepLookup) {
         const hit = cepCache.get(rawCep);
         if (hit) {
           // Reutiliza resultado já buscado para o mesmo CEP
