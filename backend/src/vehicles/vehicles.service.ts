@@ -50,13 +50,13 @@ export class VehiclesService {
     const alerts = {
       oil_due: kmUntilOil <= 500,
       oil_overdue: kmUntilOil < 0,
-      km_until_oil: kmUntilOil,
-      next_oil_km: nextOilKm,
+      km_until_oil: Math.round(kmUntilOil),
+      next_oil_km: Math.round(nextOilKm),
 
       tire_due: kmUntilTire <= 500,
       tire_overdue: kmUntilTire < 0,
-      km_until_tire: kmUntilTire,
-      next_tire_km: nextTireKm,
+      km_until_tire: Math.round(kmUntilTire),
+      next_tire_km: Math.round(nextTireKm),
     };
 
     return {

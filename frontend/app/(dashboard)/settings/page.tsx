@@ -287,7 +287,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between py-1 border-b border-white/5">
               <span style={{ color: 'var(--text-muted)' }}>Odômetro Atual</span>
               <span className="font-bold" style={{ color: 'var(--text-primary)' }}>
-                {vehicle?.odometer_km ? `${vehicle.odometer_km.toLocaleString('pt-BR')} km` : '0 km'}
+                {vehicle?.odometer_km ? `${Math.round(vehicle.odometer_km * 10) / 10} km` : '0 km'}
               </span>
             </div>
 

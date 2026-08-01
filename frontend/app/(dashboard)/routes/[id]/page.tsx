@@ -366,7 +366,7 @@ export default function RouteDetailPage() {
                 <FuelIcon size={14} />
               </div>
               <p className="text-xs font-bold text-amber-300">
-                {((route.total_distance_km || 0) / (vehicle?.km_per_liter || 10)).toFixed(1)} L
+                {Math.round(((route.total_distance_km || 0) / (vehicle?.km_per_liter || 10)) * 10) / 10} L
               </p>
               <p className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
                 {vehicle?.fuel_price_per_liter && vehicle.fuel_price_per_liter > 0
