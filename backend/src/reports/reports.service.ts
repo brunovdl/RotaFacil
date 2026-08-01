@@ -60,6 +60,7 @@ export class ReportsService {
       .eq('user_id', userId);
 
     const allRoutes = routes || [];
+    const completedRoutes = allRoutes.filter((r) => r.status === 'completed');
     const routeIds = allRoutes.map((r) => r.id);
 
     const { data: allStops } = await this.db.client
@@ -68,19 +69,22 @@ export class ReportsService {
       .in('route_id', routeIds);
 
     const stops = allStops || [];
-    const totalKm = allRoutes.reduce((acc, r) => acc + (r.total_distance_km || 0), 0);
-    const totalDuration = allRoutes.reduce((acc, r) => acc + (r.estimated_duration_min || 0), 0);
+    const totalKm = allRoutes.reduce((acc, r) => acc + Number(r.total_distance_km || 0), 0);
+    const completedKm = completedRoutes.reduce((acc, r) => acc + Number(r.total_distance_km || 0), 0);
+    const totalDuration = allRoutes.reduce((acc, r) => acc + Number(r.estimated_duration_min || 0), 0);
 
     return {
       totalKm: Math.round(totalKm * 10) / 10,
+      completedKm: Math.round(completedKm * 10) / 10,
       totalDuration,
       avgKmPerDelivery: stops.length > 0 ? Math.round((totalKm / stops.length) * 10) / 10 : 0,
       avgDeliveriesPerRoute: allRoutes.length > 0 ? Math.round((stops.length / allRoutes.length) * 10) / 10 : 0,
       totalDeliveries: stops.length,
       totalRoutes: allRoutes.length,
-      completedRoutes: allRoutes.filter((r) => r.status === 'completed').length,
+      completedRoutes: completedRoutes.length,
     };
   }
+
 
   async getKmByDay(userId: string, days = 30) {
     const startDate = new Date();

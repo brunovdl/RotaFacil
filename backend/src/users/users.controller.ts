@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Delete, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Delete, Body, UseGuards, BadRequestException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -27,9 +27,13 @@ export class UsersController {
     @CurrentUser() user: any,
     @Body('password') password: string,
   ) {
+    if (!password || password.trim().length < 6) {
+      throw new BadRequestException('A nova senha deve conter no mínimo 6 caracteres');
+    }
     const hashedPassword = await bcrypt.hash(password, 10);
     return this.usersService.updatePassword(user.id, hashedPassword);
   }
+
 
   @Delete('account')
   deleteAccount(@CurrentUser() user: any) {

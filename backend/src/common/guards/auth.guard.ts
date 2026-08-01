@@ -25,7 +25,10 @@ export class AuthGuard implements CanActivate {
     }
 
     try {
-      const secret = process.env.JWT_SECRET || 'rotafacil-super-secret-jwt-key-2024';
+      const secret = process.env.JWT_SECRET;
+      if (!secret) {
+        throw new UnauthorizedException('Configuração de segurança do servidor ausente');
+      }
       const decoded = jwt.verify(token, secret);
       request.user = decoded;
       return true;

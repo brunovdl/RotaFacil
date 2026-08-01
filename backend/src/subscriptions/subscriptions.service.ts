@@ -7,28 +7,44 @@ export class SubscriptionsService {
   constructor(private readonly db: DatabaseService) {}
 
   async getSubscription(userId: string) {
-    const { data, error } = await this.db.client
+    let { data } = await this.db.client
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
-      throw new NotFoundException('Assinatura não encontrada');
+    if (!data) {
+      const trialEnd = new Date();
+      trialEnd.setDate(trialEnd.getDate() + 7);
+      const newSub = {
+        id: uuidv4(),
+        user_id: userId,
+        plan: 'trial',
+        trial_ends_at: trialEnd.toISOString(),
+        active: true,
+      };
+      const { data: created } = await this.db.client
+        .from('subscriptions')
+        .insert(newSub)
+        .select()
+        .single();
+
+      data = created || newSub;
     }
 
     const trialEnd = new Date(data.trial_ends_at);
     const now = new Date();
-    const isExpired = !data.active && trialEnd < now;
+    const isExpired = data.plan === 'trial' ? trialEnd < now : !data.active;
 
     return {
       ...data,
       isExpired,
-      daysRemaining: data.active
+      daysRemaining: data.active && !isExpired
         ? Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
         : 0,
     };
   }
+
 
   async activateSubscription(userId: string, plan: string = 'monthly') {
     const trialEnd = new Date();

@@ -75,22 +75,22 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON public.subscriptions(use
 -- Row Level Security Policies
 -- Users can only access their own data
 CREATE POLICY user_isolation ON public.users
-  FOR ALL USING (id = auth.uid() OR auth.uid() IS NULL);
+  FOR ALL USING (id = auth.uid());
 
 CREATE POLICY routes_user_isolation ON public.routes
-  FOR ALL USING (user_id = auth.uid() OR auth.uid() IS NULL);
+  FOR ALL USING (user_id = auth.uid());
 
 CREATE POLICY stops_via_route ON public.route_stops
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM public.routes
       WHERE routes.id = route_stops.route_id
-      AND (routes.user_id = auth.uid() OR auth.uid() IS NULL)
+      AND routes.user_id = auth.uid()
     )
   );
 
 CREATE POLICY subscriptions_user_isolation ON public.subscriptions
-  FOR ALL USING (user_id = auth.uid() OR auth.uid() IS NULL);
+  FOR ALL USING (user_id = auth.uid());
 
 -- Vehicles table
 CREATE TABLE IF NOT EXISTS public.vehicles (
@@ -113,5 +113,5 @@ CREATE TABLE IF NOT EXISTS public.vehicles (
 ALTER TABLE public.vehicles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY vehicles_user_isolation ON public.vehicles
-  FOR ALL USING (user_id = auth.uid() OR auth.uid() IS NULL);
+  FOR ALL USING (user_id = auth.uid());
 

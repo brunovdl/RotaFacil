@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseService } from '../database/database.service';
 import { OptimizationService } from '../optimization/optimization.service';
 import { VehiclesService } from '../vehicles/vehicles.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { CreateRouteDto } from './dto/create-route.dto';
 
 @Injectable()
@@ -11,9 +12,17 @@ export class RoutesService {
     private readonly db: DatabaseService,
     private readonly optimization: OptimizationService,
     private readonly vehiclesService: VehiclesService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   async create(userId: string, dto: CreateRouteDto): Promise<any> {
+    const sub = await this.subscriptionsService.getSubscription(userId);
+    if (sub.isExpired) {
+      throw new ForbiddenException(
+        'Período de teste grátis expirado. Assine um plano para continuar criando rotas.',
+      );
+    }
+
     const optimized = this.optimization.optimize(
       { lat: dto.start_lat, lng: dto.start_lng },
       dto.stops.map((s) => ({ ...s })),
@@ -72,7 +81,7 @@ export class RoutesService {
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
-    const { data, error, count } = await this.db.client
+    const { data: rawRoutes, error, count } = await this.db.client
       .from('routes')
       .select('*', { count: 'exact' })
       .eq('user_id', userId)
@@ -81,7 +90,27 @@ export class RoutesService {
 
     if (error) throw error;
 
-    return { data, total: count, page, limit };
+    const routes = rawRoutes || [];
+
+    // Verificação proativa e sincronização de status para rotas ativas cujas paradas já foram finalizadas
+    for (const route of routes) {
+      if (route.status === 'active') {
+        const { data: stops } = await this.db.client
+          .from('route_stops')
+          .select('id, completed, status')
+          .eq('route_id', route.id);
+
+        if (stops && stops.length > 0) {
+          const hasPending = stops.some((s) => !s.completed && s.status !== 'skipped');
+          if (!hasPending) {
+            route.status = 'completed';
+            await this.updateStatus(route.id, userId, 'completed');
+          }
+        }
+      }
+    }
+
+    return { data: routes, total: count, page, limit };
   }
 
   async findById(id: string, userId: string) {
@@ -123,9 +152,11 @@ export class RoutesService {
   }
 
   async updateStatus(id: string, userId: string, status: string) {
+    const existing = await this.findById(id, userId);
+
     const { data, error } = await this.db.client
       .from('routes')
-      .update({ status })
+      .update({ status, updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', userId)
       .select()
@@ -133,15 +164,26 @@ export class RoutesService {
 
     if (error) throw error;
 
-    if (status === 'completed' && data && data.total_distance_km) {
-      await this.vehiclesService.addRouteKmToOdometer(
-        userId,
-        Number(data.total_distance_km),
-      );
+    if (status === 'completed') {
+      // Atualiza todas as paradas da rota para concluídas caso não tenham sido puladas/adiadas
+      await this.db.client
+        .from('route_stops')
+        .update({ completed: true, status: 'completed' })
+        .eq('route_id', id)
+        .neq('status', 'skipped');
+
+      if (existing?.status !== 'completed' && data && data.total_distance_km) {
+        await this.vehiclesService.addRouteKmToOdometer(
+          userId,
+          Number(data.total_distance_km),
+        );
+      }
     }
 
     return data;
   }
+
+
 
   async duplicate(id: string, userId: string) {
     const original = await this.findById(id, userId);
@@ -184,6 +226,7 @@ export class RoutesService {
   }
 
   async remove(id: string, userId: string) {
+    await this.findById(id, userId);
     await this.db.client.from('route_stops').delete().eq('route_id', id);
     await this.db.client.from('routes').delete().eq('id', id).eq('user_id', userId);
     return { message: 'Rota excluída com sucesso' };

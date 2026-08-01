@@ -420,6 +420,15 @@ export function ChevronRightIcon({ className = '', size = 16, ...rest }: IconPro
   );
 }
 
+export function ChevronDownIcon({ className = '', size = 16, ...rest }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className} {...rest}>
+      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+
 // ══════════════════════════════════════════
 // PACKAGE — Caixinha de entrega
 // ══════════════════════════════════════════

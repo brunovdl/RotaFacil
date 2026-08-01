@@ -11,7 +11,11 @@ export class AuthService {
   constructor(private readonly db: DatabaseService) {}
 
   private get jwtSecret(): string {
-    return process.env.JWT_SECRET || 'rotafacil-super-secret-jwt-key-2024';
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('Variável de ambiente JWT_SECRET não configurada');
+    }
+    return secret;
   }
 
   async register(dto: RegisterDto) {
@@ -101,7 +105,8 @@ export class AuthService {
       if (sub) {
         const trialEnd = new Date(sub.trial_ends_at);
         const now = new Date();
-        if (!sub.active && trialEnd < now) {
+        const isExpired = sub.plan === 'trial' ? trialEnd < now : !sub.active;
+        if (isExpired) {
           throw new UnauthorizedException('Assinatura expirada');
         }
       }

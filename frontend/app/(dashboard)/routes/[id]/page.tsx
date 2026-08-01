@@ -33,6 +33,8 @@ import {
   DuplicateIcon,
   TrashIcon,
   FuelIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
 } from '@/components/ui/icons';
 
 const statusLabel: Record<string, string> = {
@@ -58,6 +60,12 @@ export default function RouteDetailPage() {
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [suspendModalStop, setSuspendModalStop] = useState<RouteStop | null>(null);
+
+  // Estados de Seções Sanfonadas (Accordion)
+  const [isPendingOpen, setIsPendingOpen] = useState(true);
+  const [isSkippedOpen, setIsSkippedOpen] = useState(true);
+  const [isCompletedOpen, setIsCompletedOpen] = useState(false);
+
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -209,6 +217,7 @@ export default function RouteDetailPage() {
   const stops = route.stops || [];
   const activeStops = stops.filter((s) => !completedStops.has(s.id) && s.status !== 'skipped');
   const skippedStops = stops.filter((s) => !completedStops.has(s.id) && s.status === 'skipped');
+  const completedStopsList = stops.filter((s) => completedStops.has(s.id));
   const isAllCompleted = stops.length > 0 && completedStops.size === stops.length;
   const progressPct = stops.length > 0 ? Math.round((completedStops.size / stops.length) * 100) : 0;
 
@@ -512,161 +521,311 @@ export default function RouteDetailPage() {
           </Card>
         )}
 
-        {/* ── Lista de Todas as Paradas ── */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Lista de paradas
-            </h2>
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {stops.length} no total {skippedStops.length > 0 && `• ${skippedStops.length} adiadas`}
-            </span>
+        {/* ── Lista de Paradas Dividida por Seções Sanfonadas (Accordion) ── */}
+        <div className="space-y-3 pt-2">
+          {/* 📦 SEÇÃO 1: EM ANDAMENTO */}
+          <div className="space-y-2">
+            <button
+              onClick={() => setIsPendingOpen(!isPendingOpen)}
+              className="w-full flex items-center justify-between p-3 rounded-2xl border transition-all duration-200 press-effect"
+              style={{
+                background: 'linear-gradient(135deg, rgba(124,58,237,0.15) 0%, rgba(79,70,229,0.08) 100%)',
+                border: '1px solid rgba(124,58,237,0.3)',
+              }}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-xl bg-brand-500/20 border border-brand-500/30 flex items-center justify-center text-brand-400">
+                  <PackageIcon size={16} />
+                </div>
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  Em Andamento
+                </h2>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30">
+                  {activeStops.length}
+                </span>
+              </div>
+              <div className="text-brand-300">
+                {isPendingOpen ? <ChevronDownIcon size={18} /> : <ChevronRightIcon size={18} />}
+              </div>
+            </button>
+
+            {isPendingOpen && (
+              <div className="space-y-2 pl-1 animate-fade-in">
+                {activeStops.length > 0 ? (
+                  activeStops.map((stop) => {
+                    const originalIndex = stops.indexOf(stop);
+                    const isCurrent = activeStops[0]?.id === stop.id;
+
+                    return (
+                      <div
+                        key={stop.id}
+                        onClick={() => setSelectedStopId(stop.id)}
+                        className={`rounded-2xl p-3 flex flex-col gap-2 transition-all duration-200 cursor-pointer ${
+                          isCurrent ? 'ring-1 ring-brand-500/60' : ''
+                        }`}
+                        style={{
+                          background: isCurrent
+                            ? 'linear-gradient(135deg, rgba(124,58,237,0.18) 0%, rgba(79,70,229,0.08) 100%)'
+                            : 'rgba(255,255,255,0.04)',
+                          border: isCurrent
+                            ? '1px solid rgba(124,58,237,0.4)'
+                            : '1px solid rgba(255,255,255,0.07)',
+                        }}
+                      >
+                        <div className="flex items-start gap-3 w-full">
+                          <div
+                            className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5"
+                            style={{
+                              background: isCurrent
+                                ? 'linear-gradient(135deg, #7C3AED, #4F46E5)'
+                                : 'rgba(255,255,255,0.08)',
+                              color: '#FFFFFF',
+                            }}
+                          >
+                            {originalIndex + 1}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate text-white">
+                              {stop.street}, {stop.number}
+                              {stop.complement && (
+                                <span className="font-normal" style={{ color: 'var(--text-muted)' }}>
+                                  {' '}
+                                  — {stop.complement}
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                              {stop.neighborhood}, {stop.city} — {stop.state}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSuspendModalStop(stop);
+                              }}
+                              className="p-1.5 rounded-lg press-effect text-amber-400"
+                              style={{
+                                background: 'rgba(245,158,11,0.12)',
+                                border: '1px solid rgba(245,158,11,0.25)',
+                              }}
+                              title="Adiar entrega"
+                            >
+                              <ClockIcon size={16} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleNavigate(stop, 'google_maps');
+                              }}
+                              className="p-1.5 rounded-lg press-effect"
+                              style={{
+                                background: 'rgba(255,255,255,0.06)',
+                                color: 'var(--text-secondary)',
+                              }}
+                              title="Abrir no Google Maps"
+                            >
+                              <GoogleMapsIcon size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>
+                    Nenhuma entrega pendente nesta seção.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
-          {stops.map((stop, index) => {
-            const isCompleted = completedStops.has(stop.id);
-            const isSkipped = stop.status === 'skipped';
-            const isCurrent = activeStops.length > 0 && activeStops[0].id === stop.id;
+          {/* ⚠️ SEÇÃO 2: ADIADAS */}
+          <div className="space-y-2">
+            <button
+              onClick={() => setIsSkippedOpen(!isSkippedOpen)}
+              className="w-full flex items-center justify-between p-3 rounded-2xl border transition-all duration-200 press-effect"
+              style={{
+                background: 'linear-gradient(135deg, rgba(245,158,11,0.12) 0%, rgba(217,119,6,0.05) 100%)',
+                border: '1px solid rgba(245,158,11,0.3)',
+              }}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <ClockIcon size={16} />
+                </div>
+                <h2 className="text-sm font-bold text-amber-300 flex items-center gap-2">
+                  Entregas Adiadas
+                </h2>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {skippedStops.length}
+                </span>
+              </div>
+              <div className="text-amber-400">
+                {isSkippedOpen ? <ChevronDownIcon size={18} /> : <ChevronRightIcon size={18} />}
+              </div>
+            </button>
 
-            return (
-              <div
-                key={stop.id}
-                onClick={() => setSelectedStopId(stop.id)}
-                className={`rounded-2xl p-3 flex flex-col gap-2 transition-all duration-200 cursor-pointer ${
-                  isCurrent ? 'ring-1 ring-brand-500/60' : ''
-                }`}
-                style={{
-                  background: isCompleted
-                    ? 'rgba(255,255,255,0.02)'
-                    : isSkipped
-                    ? 'rgba(245,158,11,0.06)'
-                    : isCurrent
-                    ? 'linear-gradient(135deg, rgba(124,58,237,0.15) 0%, rgba(79,70,229,0.05) 100%)'
-                    : 'rgba(255,255,255,0.04)',
-                  border: isSkipped
-                    ? '1px solid rgba(245,158,11,0.3)'
-                    : isCurrent
-                    ? '1px solid rgba(124,58,237,0.4)'
-                    : '1px solid rgba(255,255,255,0.07)',
-                  opacity: isCompleted ? 0.6 : 1,
-                }}
-              >
-                <div className="flex items-start gap-3 w-full">
-                  {/* Number Badge */}
-                  <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5"
-                    style={{
-                      background: isCompleted
-                        ? 'rgba(16,217,160,0.15)'
-                        : isSkipped
-                        ? 'rgba(245,158,11,0.2)'
-                        : isCurrent
-                        ? 'linear-gradient(135deg, #7C3AED, #4F46E5)'
-                        : 'rgba(255,255,255,0.08)',
-                      color: isCompleted ? '#10D9A0' : isSkipped ? '#FCD34D' : '#FFFFFF',
-                    }}
-                  >
-                    {isCompleted ? <CheckIcon size={16} /> : isSkipped ? <ClockIcon size={16} /> : index + 1}
-                  </div>
-
-                  {/* Stop Address Info */}
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className={`text-sm font-semibold truncate ${
-                        isCompleted ? 'line-through' : ''
-                      }`}
+            {isSkippedOpen && (
+              <div className="space-y-2 pl-1 animate-fade-in">
+                {skippedStops.length > 0 ? (
+                  skippedStops.map((stop) => (
+                    <div
+                      key={stop.id}
+                      onClick={() => setSelectedStopId(stop.id)}
+                      className="rounded-2xl p-3 flex flex-col gap-2 transition-all duration-200 cursor-pointer"
                       style={{
-                        color: isCompleted ? 'var(--text-muted)' : 'var(--text-primary)',
+                        background: 'rgba(245,158,11,0.06)',
+                        border: '1px solid rgba(245,158,11,0.25)',
                       }}
                     >
-                      {stop.street}, {stop.number}
-                      {stop.complement && (
-                        <span className="font-normal" style={{ color: 'var(--text-muted)' }}>
-                          {' '}
-                          — {stop.complement}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                      {stop.neighborhood}, {stop.city} — {stop.state}
-                    </p>
+                      <div className="flex items-start gap-3 w-full">
+                        <div
+                          className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5"
+                          style={{
+                            background: 'rgba(245,158,11,0.2)',
+                            color: '#FCD34D',
+                          }}
+                        >
+                          <ClockIcon size={16} />
+                        </div>
 
-                    {/* Motivo de adiamento */}
-                    {isSkipped && (
-                      <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] font-medium">
-                        <span>⚠️ Adiada: {stop.skip_reason || 'Adiada pelo motorista'}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate text-white">
+                            {stop.street}, {stop.number}
+                            {stop.complement && (
+                              <span className="font-normal" style={{ color: 'var(--text-muted)' }}>
+                                {' '}
+                                — {stop.complement}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                            {stop.neighborhood}, {stop.city} — {stop.state}
+                          </p>
+
+                          <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] font-medium">
+                            <span>⚠️ Adiada: {stop.skip_reason || 'Adiada pelo motorista'}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleResumeStop(stop.id);
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg press-effect text-xs font-semibold"
+                            style={{
+                              background: 'rgba(124,58,237,0.2)',
+                              border: '1px solid rgba(124,58,237,0.4)',
+                              color: '#A78BFA',
+                            }}
+                            title="Retomar entrega"
+                          >
+                            Retomar
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCompleteStop(stop.id);
+                            }}
+                            className="p-1.5 rounded-lg press-effect text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
+                            title="Marcar como concluída"
+                          >
+                            <CheckIcon size={16} />
+                          </button>
+                        </div>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Direct GPS Navigate & Adiar buttons */}
-                  {!isCompleted && !isSkipped && (
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSuspendModalStop(stop);
-                        }}
-                        className="p-1.5 rounded-lg press-effect text-amber-400"
-                        style={{
-                          background: 'rgba(245,158,11,0.12)',
-                          border: '1px solid rgba(245,158,11,0.25)',
-                        }}
-                        title="Adiar entrega"
-                      >
-                        <ClockIcon size={16} />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleNavigate(stop, 'google_maps');
-                        }}
-                        className="p-1.5 rounded-lg press-effect"
-                        style={{
-                          background: 'rgba(255,255,255,0.06)',
-                          color: 'var(--text-secondary)',
-                        }}
-                        title="Abrir no Google Maps"
-                      >
-                        <GoogleMapsIcon size={16} />
-                      </button>
                     </div>
-                  )}
-
-                  {/* Ações para parada Adiada */}
-                  {isSkipped && !isCompleted && (
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleResumeStop(stop.id);
-                        }}
-                        className="px-2.5 py-1.5 rounded-lg press-effect text-xs font-semibold"
-                        style={{
-                          background: 'rgba(124,58,237,0.2)',
-                          border: '1px solid rgba(124,58,237,0.4)',
-                          color: '#A78BFA',
-                        }}
-                        title="Retomar entrega"
-                      >
-                        Retomar
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCompleteStop(stop.id);
-                        }}
-                        className="p-1.5 rounded-lg press-effect text-emerald-400 bg-emerald-500/10 border border-emerald-500/20"
-                        title="Marcar como concluída"
-                      >
-                        <CheckIcon size={16} />
-                      </button>
-                    </div>
-                  )}
-                </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>
+                    Nenhuma entrega adiada nesta rota.
+                  </p>
+                )}
               </div>
-            );
-          })}
+            )}
+          </div>
+
+          {/* ✅ SEÇÃO 3: CONCLUÍDAS */}
+          <div className="space-y-2">
+            <button
+              onClick={() => setIsCompletedOpen(!isCompletedOpen)}
+              className="w-full flex items-center justify-between p-3 rounded-2xl border transition-all duration-200 press-effect"
+              style={{
+                background: 'linear-gradient(135deg, rgba(16,217,160,0.12) 0%, rgba(5,150,105,0.05) 100%)',
+                border: '1px solid rgba(16,217,160,0.3)',
+              }}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <CheckIcon size={16} />
+                </div>
+                <h2 className="text-sm font-bold text-emerald-300 flex items-center gap-2">
+                  Entregas Concluídas
+                </h2>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  {completedStopsList.length}
+                </span>
+              </div>
+              <div className="text-emerald-400">
+                {isCompletedOpen ? <ChevronDownIcon size={18} /> : <ChevronRightIcon size={18} />}
+              </div>
+            </button>
+
+            {isCompletedOpen && (
+              <div className="space-y-2 pl-1 animate-fade-in">
+                {completedStopsList.length > 0 ? (
+                  completedStopsList.map((stop) => (
+                    <div
+                      key={stop.id}
+                      onClick={() => setSelectedStopId(stop.id)}
+                      className="rounded-2xl p-3 flex flex-col gap-2 transition-all duration-200 cursor-pointer opacity-70"
+                      style={{
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                      }}
+                    >
+                      <div className="flex items-start gap-3 w-full">
+                        <div
+                          className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 text-xs font-bold mt-0.5"
+                          style={{
+                            background: 'rgba(16,217,160,0.15)',
+                            color: '#10D9A0',
+                          }}
+                        >
+                          <CheckIcon size={16} />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate line-through" style={{ color: 'var(--text-muted)' }}>
+                            {stop.street}, {stop.number}
+                            {stop.complement && (
+                              <span className="font-normal">
+                                {' '}
+                                — {stop.complement}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                            {stop.neighborhood}, {stop.city} — {stop.state}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>
+                    Nenhuma entrega concluída ainda.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── Complete Route Banner ── */}

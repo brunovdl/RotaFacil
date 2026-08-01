@@ -1,14 +1,34 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
+import { VehiclesService } from '../vehicles/vehicles.service';
 
 @Injectable()
 export class RouteStopsService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly vehiclesService: VehiclesService,
+  ) {}
 
-  async complete(stopId: string, routeId: string) {
+  private async verifyRouteOwner(routeId: string, userId?: string) {
+    if (!userId) return;
+    const { data: route } = await this.db.client
+      .from('routes')
+      .select('id')
+      .eq('id', routeId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!route) {
+      throw new NotFoundException('Rota não encontrada');
+    }
+  }
+
+  async complete(stopId: string, routeId: string, userId?: string) {
+    await this.verifyRouteOwner(routeId, userId);
+
     const { data, error } = await this.db.client
       .from('route_stops')
-      .update({ completed: true })
+      .update({ completed: true, status: 'completed' })
       .eq('id', stopId)
       .eq('route_id', routeId)
       .select()
@@ -18,24 +38,43 @@ export class RouteStopsService {
       throw new NotFoundException('Parada não encontrada');
     }
 
-    // Check if all stops are completed
-    const { data: remaining } = await this.db.client
+    // Check if all stops are completed or skipped (no pending stops left)
+    const { data: allStops } = await this.db.client
       .from('route_stops')
-      .select('id')
-      .eq('route_id', routeId)
-      .eq('completed', false);
+      .select('id, completed, status')
+      .eq('route_id', routeId);
 
-    if (!remaining || remaining.length === 0) {
-      await this.db.client
+    const hasPending = (allStops || []).some((s) => !s.completed && s.status !== 'skipped');
+
+    if (!hasPending) {
+      const { data: route } = await this.db.client
         .from('routes')
-        .update({ status: 'completed' })
-        .eq('id', routeId);
+        .select('user_id, status, total_distance_km')
+        .eq('id', routeId)
+        .single();
+
+      if (route && route.status !== 'completed') {
+        await this.db.client
+          .from('routes')
+          .update({ status: 'completed', updated_at: new Date().toISOString() })
+          .eq('id', routeId);
+
+        if (route.user_id && route.total_distance_km) {
+          await this.vehiclesService.addRouteKmToOdometer(
+            route.user_id,
+            Number(route.total_distance_km),
+          );
+        }
+      }
     }
 
     return data;
   }
 
-  async reorder(routeId: string, stopIds: string[]) {
+
+  async reorder(routeId: string, stopIds: string[], userId?: string) {
+    await this.verifyRouteOwner(routeId, userId);
+
     const updates = stopIds.map((id, index) => ({
       id,
       route_id: routeId,
@@ -56,10 +95,13 @@ export class RouteStopsService {
   async skip(
     stopId: string,
     routeId: string,
+    userId?: string,
     reason?: string,
     notes?: string,
     moveToEnd = true,
   ) {
+    await this.verifyRouteOwner(routeId, userId);
+
     let orderIndexUpdate: number | null = null;
 
     if (moveToEnd) {
@@ -142,7 +184,9 @@ export class RouteStopsService {
     return data;
   }
 
-  async resume(stopId: string, routeId: string) {
+  async resume(stopId: string, routeId: string, userId?: string) {
+    await this.verifyRouteOwner(routeId, userId);
+
     let { data, error } = await this.db.client
       .from('route_stops')
       .update({
@@ -186,7 +230,9 @@ export class RouteStopsService {
     return data;
   }
 
-  async getNextStop(routeId: string) {
+  async getNextStop(routeId: string, userId?: string) {
+    await this.verifyRouteOwner(routeId, userId);
+
     const { data, error } = await this.db.client
       .from('route_stops')
       .select('*')
@@ -204,3 +250,4 @@ export class RouteStopsService {
     return data;
   }
 }
+
