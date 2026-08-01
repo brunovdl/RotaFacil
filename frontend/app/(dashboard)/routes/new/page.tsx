@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { PackageScanner } from '@/components/ui/package-scanner';
 import { SpreadsheetImporter, ImportedAddress } from '@/components/ui/spreadsheet-importer';
 import { AddAddressModal, AddressForm } from '@/components/ui/add-address-modal';
+import { SubscriptionModal } from '@/components/ui/subscription-modal';
 import { LoadingOverlay } from '@/components/ui/loading-overlay';
 import { api } from '@/lib/api';
 import { formatCep, onlyNumbers } from '@/lib/utils';
@@ -467,6 +468,8 @@ export default function NewRoutePage() {
 
   const removeStop = (index: number) => setStops(prev => prev.filter((_, i) => i !== index));
 
+  const [showSubModal, setShowSubModal] = useState(false);
+
   // ── salvar rota ───────────────────────────────────────────────────────────
   const handleSaveRoute = async () => {
     if (!routeName || stops.length === 0 || startLat === null || startLng === null) return;
@@ -483,7 +486,12 @@ export default function NewRoutePage() {
       });
       router.push(`/routes/${result.id}`);
     } catch (err: any) {
-      alert(err.message || 'Erro ao salvar rota');
+      const msg = err.message || '';
+      if (msg.toLowerCase().includes('expirado') || msg.toLowerCase().includes('assine') || msg.toLowerCase().includes('plano')) {
+        setShowSubModal(true);
+      } else {
+        alert(msg || 'Erro ao salvar rota');
+      }
     } finally {
       setSaving(false);
     }
@@ -1028,6 +1036,15 @@ export default function NewRoutePage() {
           subtext="Organizando sequência de paradas para economizar combustível"
         />
       )}
+
+      <SubscriptionModal
+        isOpen={showSubModal}
+        onClose={() => setShowSubModal(false)}
+        onSuccess={() => {
+          setShowSubModal(false);
+          handleSaveRoute();
+        }}
+      />
     </div>
   );
 }

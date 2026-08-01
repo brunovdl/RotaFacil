@@ -288,7 +288,34 @@ export class RoutesService {
       .select('*', { count: 'exact', head: true })
       .in('route_id', (todayRoutes || []).map((r) => r.id));
 
-    const currentRoute = (todayRoutes || []).find((r) => r.status === 'active');
+    // Sincronização e verificação de rotas ativas do dia
+    let currentRoute: any = null;
+    const activeCandidates = (todayRoutes || []).filter((r) => r.status === 'active');
+
+    for (const route of activeCandidates) {
+      const { data: stops } = await this.db.client
+        .from('route_stops')
+        .select('id, completed, status')
+        .eq('route_id', route.id);
+
+      if (stops && stops.length > 0) {
+        const hasPending = stops.some((s) => !s.completed && s.status !== 'skipped');
+        if (!hasPending) {
+          route.status = 'completed';
+          await this.db.client
+            .from('routes')
+            .update({ status: 'completed', updated_at: new Date().toISOString() })
+            .eq('id', route.id)
+            .eq('user_id', userId);
+        } else {
+          currentRoute = route;
+          break;
+        }
+      } else {
+        currentRoute = route;
+        break;
+      }
+    }
 
     return {
       todayRoutes: todayRoutes?.length || 0,

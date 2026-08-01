@@ -23,28 +23,18 @@ export class RouteStopsService {
     }
   }
 
-  async complete(stopId: string, routeId: string, userId?: string) {
-    await this.verifyRouteOwner(routeId, userId);
-
-    const { data, error } = await this.db.client
-      .from('route_stops')
-      .update({ completed: true, status: 'completed' })
-      .eq('id', stopId)
-      .eq('route_id', routeId)
-      .select()
-      .single();
-
-    if (error || !data) {
-      throw new NotFoundException('Parada não encontrada');
-    }
-
-    // Check if all stops are completed or skipped (no pending stops left)
+  /**
+   * Sincroniza o status da rota principal caso todas as paradas estejam concluídas/adiadas
+   */
+  public async checkAndSyncRouteStatus(routeId: string) {
     const { data: allStops } = await this.db.client
       .from('route_stops')
       .select('id, completed, status')
       .eq('route_id', routeId);
 
-    const hasPending = (allStops || []).some((s) => !s.completed && s.status !== 'skipped');
+    if (!allStops || allStops.length === 0) return;
+
+    const hasPending = allStops.some((s) => !s.completed && s.status !== 'skipped');
 
     if (!hasPending) {
       const { data: route } = await this.db.client
@@ -67,10 +57,27 @@ export class RouteStopsService {
         }
       }
     }
+  }
+
+  async complete(stopId: string, routeId: string, userId?: string) {
+    await this.verifyRouteOwner(routeId, userId);
+
+    const { data, error } = await this.db.client
+      .from('route_stops')
+      .update({ completed: true, status: 'completed' })
+      .eq('id', stopId)
+      .eq('route_id', routeId)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundException('Parada não encontrada');
+    }
+
+    await this.checkAndSyncRouteStatus(routeId);
 
     return data;
   }
-
 
   async reorder(routeId: string, stopIds: string[], userId?: string) {
     await this.verifyRouteOwner(routeId, userId);
@@ -181,6 +188,8 @@ export class RouteStopsService {
       data.skip_reason = reason || 'Adiada pelo motorista';
     }
 
+    await this.checkAndSyncRouteStatus(routeId);
+
     return data;
   }
 
@@ -190,6 +199,7 @@ export class RouteStopsService {
     let { data, error } = await this.db.client
       .from('route_stops')
       .update({
+        completed: false,
         status: 'pending',
         skip_reason: null,
       })
@@ -227,6 +237,12 @@ export class RouteStopsService {
       data.skip_reason = null;
     }
 
+    // Se reabrir uma parada, a rota volta para ativa caso estivesse concluída
+    await this.db.client
+      .from('routes')
+      .update({ status: 'active', updated_at: new Date().toISOString() })
+      .eq('id', routeId);
+
     return data;
   }
 
@@ -250,4 +266,3 @@ export class RouteStopsService {
     return data;
   }
 }
-

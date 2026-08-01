@@ -60,8 +60,17 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   plan TEXT DEFAULT 'trial',
   trial_ends_at TIMESTAMP WITH TIME ZONE NOT NULL,
-  active BOOLEAN DEFAULT TRUE
+  active BOOLEAN DEFAULT TRUE,
+  paid_until TIMESTAMP WITH TIME ZONE,
+  last_payment_id TEXT,
+  last_payment_status TEXT,
+  payment_method TEXT
 );
+
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS paid_until TIMESTAMP WITH TIME ZONE;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS last_payment_id TEXT;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS last_payment_status TEXT;
+ALTER TABLE public.subscriptions ADD COLUMN IF NOT EXISTS payment_method TEXT;
 
 ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
 

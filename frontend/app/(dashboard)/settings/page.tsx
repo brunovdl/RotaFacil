@@ -18,6 +18,7 @@ import {
   FuelIcon,
 } from '@/components/ui/icons';
 import { VehicleModal } from '@/components/ui/vehicle-modal';
+import { SubscriptionModal } from '@/components/ui/subscription-modal';
 import type { Vehicle } from '@/lib/types';
 
 export default function SettingsPage() {
@@ -26,6 +27,7 @@ export default function SettingsPage() {
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [subscription, setSubscription] = useState<any>(null);
+  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -319,24 +321,38 @@ export default function SettingsPage() {
             <div className="space-y-2 text-xs">
               <div className="flex justify-between py-1 border-b border-white/5">
                 <span style={{ color: 'var(--text-muted)' }}>Plano Atual</span>
-                <span className="font-semibold capitalize text-brand-300">{subscription.plan}</span>
+                <span className="font-semibold capitalize text-brand-300">
+                  {subscription.plan === 'monthly' ? 'Mensal (R$ 15,00/mês)' : 'Trial Grátis'}
+                </span>
               </div>
               <div className="flex justify-between py-1 border-b border-white/5">
                 <span style={{ color: 'var(--text-muted)' }}>Status</span>
-                <span className={`font-semibold ${subscription.active ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {subscription.active ? 'Ativo (7 dias grátis)' : 'Inativo'}
+                <span className={`font-semibold ${subscription.active && !subscription.isExpired ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {subscription.active && !subscription.isExpired ? 'Ativo' : 'Inativo / Expirado'}
                 </span>
               </div>
               {subscription.daysRemaining > 0 && (
                 <div className="flex justify-between py-1 border-b border-white/5">
-                  <span style={{ color: 'var(--text-muted)' }}>Dias restantes no teste</span>
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {subscription.plan === 'trial' ? 'Dias restantes no teste' : 'Dias restantes na assinatura'}
+                  </span>
                   <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>{subscription.daysRemaining} dias</span>
                 </div>
               )}
+
+              <Button
+                type="button"
+                className="w-full mt-2"
+                onClick={() => setIsSubscriptionModalOpen(true)}
+              >
+                <StarsIcon size={16} className="mr-2 text-yellow-300" />
+                {subscription.plan === 'monthly' ? 'Renovar Assinatura (R$ 15,00)' : 'Assinar RotaFácil (R$ 15,00/mês)'}
+              </Button>
+
               {subscription.active && (
                 <button
                   onClick={handleCancelSubscription}
-                  className="w-full mt-2 py-2 rounded-xl text-xs font-semibold press-effect"
+                  className="w-full py-2 rounded-xl text-xs font-semibold press-effect"
                   style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }}
                 >
                   Cancelar Assinatura
@@ -412,6 +428,13 @@ export default function SettingsPage() {
           setVehicle(updated);
           setMessage('Troca de pneu registrada com sucesso!');
         }}
+      />
+
+      <SubscriptionModal
+        isOpen={isSubscriptionModalOpen}
+        onClose={() => setIsSubscriptionModalOpen(false)}
+        onSuccess={loadSubscription}
+        userEmail={email}
       />
 
       <BottomNav />

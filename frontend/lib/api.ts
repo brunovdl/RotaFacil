@@ -98,6 +98,23 @@ export const api = {
     activate: () =>
       request<any>('/subscriptions/activate', { method: 'POST' }),
     cancel: () => request<any>('/subscriptions/cancel', { method: 'POST' }),
+    createPix: (data: { email: string; cpf?: string }) =>
+      request<any>('/subscriptions/pix', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    createCard: (data: {
+      token: string;
+      paymentMethodId: string;
+      email: string;
+      cpf?: string;
+    }) =>
+      request<any>('/subscriptions/card', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    checkPayment: (paymentId: string) =>
+      request<any>(`/subscriptions/check-payment/${paymentId}`),
   },
   reports: {
     operational: () => request<any>('/reports/operational'),
