@@ -7,7 +7,19 @@ import { Header } from '@/components/layout/header';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RouteMap } from '@/components/ui/route-map';
+import dynamic from 'next/dynamic';
+const RouteMap = dynamic(
+  () => import('@/components/ui/route-map').then((mod) => ({ default: mod.RouteMap })),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="h-56 rounded-2xl animate-pulse"
+        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+      />
+    ),
+  },
+);
 import { LoadingOverlay } from '@/components/ui/loading-overlay';
 import { SuspendStopModal } from '@/components/ui/suspend-stop-modal';
 import { api } from '@/lib/api';
@@ -189,7 +201,8 @@ export default function RouteDetailPage() {
     setActionOverlay({ title: 'Finalizando Rota...', message: 'Atualizando status de todas as entregas' });
     try {
       await api.routes.updateStatus(params.id as string, 'completed');
-      loadRoute();
+      setRoute((prev) => (prev ? { ...prev, status: 'completed' } : prev));
+      await loadRoute();
     } catch (err: any) {
       alert(err.message || 'Erro ao concluir rota');
     } finally {
@@ -218,8 +231,8 @@ export default function RouteDetailPage() {
   const activeStops = stops.filter((s) => !completedStops.has(s.id) && s.status !== 'skipped');
   const skippedStops = stops.filter((s) => !completedStops.has(s.id) && s.status === 'skipped');
   const completedStopsList = stops.filter((s) => completedStops.has(s.id));
-  const isAllCompleted = stops.length > 0 && completedStops.size === stops.length;
-  const progressPct = stops.length > 0 ? Math.round((completedStops.size / stops.length) * 100) : 0;
+  const isAllCompleted = route.status === 'completed' || (stops.length > 0 && activeStops.length === 0);
+  const progressPct = stops.length > 0 ? Math.round(((completedStops.size + skippedStops.length) / stops.length) * 100) : 0;
 
   return (
     <div style={{ background: 'var(--surface)', minHeight: '100vh' }}>

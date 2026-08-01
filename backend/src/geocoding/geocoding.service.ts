@@ -5,9 +5,17 @@ interface GeocodeResult {
   lng: number;
 }
 
+interface CacheEntry {
+  result: GeocodeResult;
+  expiresAt: number;
+}
+
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
+const CACHE_MAX_SIZE = 1000;
+
 @Injectable()
 export class GeocodingService {
-  private cache = new Map<string, GeocodeResult>();
+  private cache = new Map<string, CacheEntry>();
 
   async geocode(
     street: string,
@@ -19,7 +27,11 @@ export class GeocodingService {
     const cacheKey = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
     if (this.cache.has(cacheKey)) {
-      return this.cache.get(cacheKey)!;
+      const entry = this.cache.get(cacheKey)!;
+      if (entry.expiresAt > Date.now()) {
+        return entry.result;
+      }
+      this.cache.delete(cacheKey);
     }
 
     try {
@@ -44,7 +56,7 @@ export class GeocodingService {
           lat: parseFloat(data[0].lat),
           lng: parseFloat(data[0].lon),
         };
-        this.cache.set(cacheKey, result);
+        this.setCacheEntry(cacheKey, result);
         return result;
       }
 
@@ -124,5 +136,14 @@ export class GeocodingService {
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
     return results;
+  }
+
+  private setCacheEntry(key: string, result: GeocodeResult): void {
+    // Evita crescimento ilimitado: remove a entrada mais antiga se atingir o limite
+    if (this.cache.size >= CACHE_MAX_SIZE) {
+      const firstKey = this.cache.keys().next().value;
+      if (firstKey) this.cache.delete(firstKey);
+    }
+    this.cache.set(key, { result, expiresAt: Date.now() + CACHE_TTL_MS });
   }
 }

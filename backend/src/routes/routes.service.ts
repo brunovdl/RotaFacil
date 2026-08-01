@@ -131,6 +131,14 @@ export class RoutesService {
       .eq('route_id', id)
       .order('order_index', { ascending: true });
 
+    if (data.status === 'active' && stops && stops.length > 0) {
+      const hasPending = stops.some((s) => !s.completed && s.status !== 'skipped');
+      if (!hasPending) {
+        await this.updateStatus(id, userId, 'completed');
+        data.status = 'completed';
+      }
+    }
+
     const formattedStops = (stops || []).map((stop) => {
       let status = stop.status || (stop.completed ? 'completed' : 'pending');
       let skipReason = stop.skip_reason || null;

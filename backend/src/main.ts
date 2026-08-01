@@ -1,9 +1,14 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const compression = require('compression');
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Compressão HTTP (Gzip/Brotli) — reduz payload em ~70% para respostas JSON
+  app.use(compression({ level: 6, threshold: 1024 }));
 
   app.enableCors({
     origin: true,
