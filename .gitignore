@@ -42,7 +42,9 @@ Thumbs.db
 
 # Agent configuration & instructions
 .agent/
-GEMINI.md
+.agents/
 workspace/
+GEMINI.md
+skills-lock.json
 
 
