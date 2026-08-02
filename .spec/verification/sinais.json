@@ -1125,6 +1125,15 @@
       "primeiraVez": "2026-08-02T03:17:45.687Z",
       "ultimaVez": "2026-08-02T03:19:42.299Z",
       "gitRev": "d15508a"
+    },
+    "STATUS_INVALIDO::integracao-pagamento-mercadopago::.spec\\features\\integracao-pagamento-mercadopago\\spec.md": {
+      "codigo": "STATUS_INVALIDO",
+      "feature": "integracao-pagamento-mercadopago",
+      "ref": ".spec\\features\\integracao-pagamento-mercadopago\\spec.md",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-02T04:01:09.535Z",
+      "ultimaVez": "2026-08-02T04:01:09.537Z",
+      "gitRev": "2a0cf41"
     }
   }
 }

@@ -1,23 +1,23 @@
 # Spec: Integracao pagamento mercadopago
 
 > feature: integracao-pagamento-mercadopago
-> status: rascunho
+> status: implementada
 
 ## Contexto
 
-Integração nativa de pagamento recorrente (assinatura mensal de R$ 15,00) com Mercado Pago via PIX (QR Code estático/dinâmico e Copia e Cola) e Cartão de Crédito com renovação automática de 30 dias e recepção resiliente de Webhooks de notificação.
+Integração nativa de pagamento de assinatura mensal (R$ 15,00/mês) com Mercado Pago via PIX (QR Code visualizável e chave Copia e Cola com cópia em 1 toque) e Cartão de Crédito. O fluxo garante a exibição obrigatória do QR Code/Copia e Cola e aguarda a confirmação/validação do pagamento (via Webhook ou Polling) antes de liberar a assinatura e o uso do sistema.
 
 ## Histórias
 
-### US-014 — Geração e pagamento via PIX Mercado Pago
+### US-014 — Geração e exibição obrigatória de PIX Mercado Pago
 
-Como motorista autônomo, quero gerar um QR Code do PIX no valor de R$ 15,00 para assinar a plataforma RotaFácil, para que minha conta seja ativada instantaneamente após o pagamento.
+Como motorista autônomo com trial de 7 dias expirado ou buscando assinatura, quero visualizar o QR Code do PIX e a chave Copia e Cola na tela sem que a assinatura seja ativada automaticamente antes do pagamento real, para que eu possa pagar no meu aplicativo bancário com segurança.
 
-#### AC-026 — Geração de QR Code PIX e chave Copia e Cola
+#### AC-026 — Exibição obrigatória de QR Code PIX e chave Copia e Cola
 
-- **Dado** que o motorista escolhe a opção de pagamento por PIX na modal de assinatura
-- **Quando** ele confirma seu e-mail e CPF
-- **Então** o sistema envia o payload ao endpoint `/v1/payments` do Mercado Pago com `payment_method_id = 'pix'` e header `X-Idempotency-Key`, retornando o QR Code base64 e a chave Copia e Cola.
+- **Dado** que o motorista submete seu e-mail e CPF para gerar o pagamento via PIX
+- **Quando** o backend retorna os dados do PIX
+- **Então** o modal obrigatoriamente permanece aberto exibindo o QR Code (base64 ou gerado a partir da string PIX) e a chave Copia e Cola com botão de cópia em 1 toque, SEM ativar a assinatura nem fechar a tela automaticamente até o pagamento ser confirmado.
 
 #### AC-027 — Liberação automática da conta via Webhook do Mercado Pago
 
@@ -25,15 +25,15 @@ Como motorista autônomo, quero gerar um QR Code do PIX no valor de R$ 15,00 par
 - **Quando** o Mercado Pago dispara o Webhook de notificação (`action: payment.created` / `status: approved`)
 - **Então** o backend identifica o `external_reference` (user_id), atualiza o plano da assinatura para `monthly` e estende a validade (`paid_until`) por 30 dias.
 
-### US-015 — Processamento de pagamento por Cartão de Crédito
+### US-015 — Processamento de pagamento por Cartão de Crédito com Validação
 
-Como motorista, quero cadastrar meu cartão de crédito para cobrança automática mensal, para não ter que renovar manualmente todo mês.
+Como motorista, quero pagar via cartão de crédito e ter a validação da aprovação antes do acesso ser liberado.
 
-#### AC-028 — Transação com token de cartão de crédito seguro
+#### AC-028 — Transação com token de cartão de crédito seguro e validação de aprovação
 
 - **Dado** que o motorista preenche os dados do cartão de crédito no Checkout Transparente
 - **Quando** o token do cartão é submetido
-- **Então** o sistema realiza a chamada à API do Mercado Pago enviando o token de segurança, identificação do pagador e idempotência, ativando a assinatura imediatamente se a transação for aprovada (`status = approved`).
+- **Então** o sistema realiza a chamada à API do Mercado Pago enviando o token de segurança, ativando a assinatura SOMENTE APÓS a validação da resposta com `status = approved`.
 
 #### AC-029 — Tratamento de cartão recusado ou saldo insuficiente
 
@@ -41,15 +41,15 @@ Como motorista, quero cadastrar meu cartão de crédito para cobrança automáti
 - **Quando** a API do Mercado Pago retorna status `rejected` ou `in_process`
 - **Então** o sistema salva o histórico do erro, exibe uma mensagem explicativa com o detalhe do recuso e mantém o modal de pagamento aberto para nova tentativa.
 
-### US-016 — Consulta de status de transação em tempo real
+### US-016 — Polling em tempo real e Bloqueio pós-Trial
 
-Como motorista aguardando na tela de confirmação de pagamento, quero que o aplicativo cheque o status do meu Pix a cada poucos segundos, para que eu seja direcionado ao Dashboard assim que o pagamento for aprovado.
+Como motorista cujo trial de 7 dias expirou, quero que a tela de cobrança me bloqueie o acesso aos recursos do app até que o pagamento via PIX ou Cartão seja validado pelo polling em tempo real.
 
-#### AC-030 — Polling resiliente de status do pagamento
+#### AC-030 — Polling resiliente de status do pagamento e redirecionamento
 
 - **Dado** que o QR Code do PIX está sendo exibido na tela
-- **Quando** o frontend faz polling para o endpoint `GET /subscriptions/status` ou `GET /subscriptions/check-payment/:paymentId`
-- **Então** o backend verifica o status no Mercado Pago e retorna `approved: true` quando a transação é confirmada, atualizando a interface em tempo real.
+- **Quando** o frontend faz polling para o endpoint `GET /subscriptions/check-payment/:paymentId`
+- **Então** o backend verifica o status no Mercado Pago e o modal exibe a mensagem de sucesso e libera o acesso ao Dashboard SOMENTE quando a resposta for `approved: true`.
 
 ## Fora de escopo
 
@@ -59,7 +59,7 @@ Como motorista aguardando na tela de confirmação de pagamento, quero que o apl
 
 | ID | Suposição | Status | Resolução |
 |---|---|---|---|
-| ASM-007 | Em ambiente dev sem `MERCADO_PAGO_ACCESS_TOKEN` configurado, o sistema executa modo de simulação (Mock Payment) para aprovação instantânea nos testes. | confirmada | Implementado no SubscriptionsService |
+| ASM-007 | O QR Code do PIX deve sempre ser renderizado visualmente na tela via canvas SVG/PNG, acompanhado da opção Copia e Cola. | confirmada | Implementado com biblioteca qrcode no frontend |
 
 ## Perguntas em aberto
 

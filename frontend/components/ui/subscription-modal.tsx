@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import QRCode from 'qrcode';
 import { Button } from './button';
 import { Input } from './input';
 import { api } from '@/lib/api';
-import { CheckIcon, StarsIcon } from './icons';
+import { CheckIcon, StarsIcon, CopyIcon } from './icons';
 
 interface SubscriptionModalProps {
   isOpen: boolean;
@@ -26,25 +27,44 @@ export function SubscriptionModal({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
-  // Pix state
+  // Estado Pix
   const [pixData, setPixData] = useState<{
     paymentId: string;
     qrCode: string;
     qrCodeBase64: string | null;
+    isMock?: boolean;
   } | null>(null);
+  const [generatedCanvasUrl, setGeneratedCanvasUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Card state
+  // Estado Cartão
   const [cardNumber, setCardNumber] = useState('');
   const [cardHolder, setCardHolder] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
 
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
   useEffect(() => {
     if (userEmail) setEmail(userEmail);
   }, [userEmail]);
 
-  // Polling para status do Pix
+  // Gera a imagem do QR Code via biblioteca `qrcode` caso base64 não seja fornecido
+  useEffect(() => {
+    if (!pixData?.qrCode) return;
+
+    if (pixData.qrCodeBase64) {
+      setGeneratedCanvasUrl(`data:image/png;base64,${pixData.qrCodeBase64}`);
+    } else {
+      QRCode.toDataURL(pixData.qrCode, { width: 250, margin: 2 }, (err, url) => {
+        if (!err && url) {
+          setGeneratedCanvasUrl(url);
+        }
+      });
+    }
+  }, [pixData]);
+
+  // Polling resiliente do status do Pix - NUNCA ativa sem retorno aprovado do backend
   useEffect(() => {
     if (!pixData?.paymentId || success) return;
 
@@ -60,7 +80,7 @@ export function SubscriptionModal({
           }, 2000);
         }
       } catch (err) {
-        // Silencioso no polling
+        // Ignora erro no polling silencioso
       }
     }, 3000);
 
@@ -79,21 +99,11 @@ export function SubscriptionModal({
         paymentId: res.paymentId,
         qrCode: res.qrCode,
         qrCodeBase64: res.qrCodeBase64,
+        isMock: res.isMock,
       });
-
-      // Se for mock em ambiente local dev sem chave real
-      if (res.isMock) {
-        setTimeout(async () => {
-          await api.subscriptions.activate();
-          setSuccess(true);
-          setTimeout(() => {
-            if (onSuccess) onSuccess();
-            onClose();
-          }, 2000);
-        }, 3000);
-      }
+      // Importante: NÃO ativa automaticamente nem fecha o modal! Mantém na tela exibindo QR Code e Copia e Cola.
     } catch (err: any) {
-      setError(err.message || 'Erro ao gerar Pix');
+      setError(err.message || 'Erro ao gerar Pix no Mercado Pago');
     } finally {
       setLoading(false);
     }
@@ -106,47 +116,57 @@ export function SubscriptionModal({
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const handleSimulatePaymentDev = async () => {
+    setLoading(true);
+    try {
+      await api.subscriptions.activate();
+      setSuccess(true);
+      setTimeout(() => {
+        if (onSuccess) onSuccess();
+        onClose();
+      }, 2000);
+    } catch (err: any) {
+      setError(err.message || 'Erro ao simular pagamento');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePayCard = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
     try {
-      // Simulação / Tokenização de cartão
-      const token = `card_token_${Date.now()}`;
       const res = await api.subscriptions.createCard({
-        token,
-        paymentMethodId: 'master',
+        token: 'tok_mock_' + Date.now(),
+        paymentMethodId: 'visa',
         email,
         cpf,
       });
 
-      if (res.status === 'approved' || res.isMock) {
+      if (res.status === 'approved') {
         setSuccess(true);
         setTimeout(() => {
           if (onSuccess) onSuccess();
           onClose();
         }, 2000);
       } else {
-        setError('O pagamento foi recusado. Verifique os dados do cartão.');
+        setError(`Pagamento ${res.status}: ${res.statusDetail || 'Verifique os dados do cartão e tente novamente.'}`);
       }
     } catch (err: any) {
-      setError(err.message || 'Erro ao processar cartão');
+      setError(err.message || 'Erro ao processar cartão de crédito');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
-      <div
-        className="w-full max-w-md p-6 space-y-5 rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden"
-        style={{ background: '#131326' }}
-      >
-        {/* Glow de Fundo */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
+      <div className="relative w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl p-6 shadow-2xl space-y-5 overflow-hidden">
+        {/* Glow de fundo */}
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-brand-500/20 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Header do Modal */}
+        {/* Header */}
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 text-brand-400 font-bold text-xs uppercase tracking-wider mb-1">
@@ -154,7 +174,7 @@ export function SubscriptionModal({
             </div>
             <h2 className="text-xl font-bold text-white">Assinatura Mensal</h2>
             <p className="text-xs text-white/60">
-              Desbloqueie uso ilimitado por apenas <span className="font-bold text-emerald-400">R$ 15,00/mês</span>
+              Uso ilimitado de rotas por apenas <span className="font-bold text-emerald-400">R$ 15,00/mês</span>
             </p>
           </div>
           <button
@@ -165,7 +185,7 @@ export function SubscriptionModal({
           </button>
         </div>
 
-        {/* Sucesso */}
+        {/* Estado de Sucesso */}
         {success ? (
           <div className="py-8 text-center space-y-3">
             <div className="w-16 h-16 mx-auto rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
@@ -173,7 +193,7 @@ export function SubscriptionModal({
             </div>
             <h3 className="text-lg font-bold text-white">Pagamento Confirmado!</h3>
             <p className="text-xs text-white/70">
-              Sua assinatura foi ativada com sucesso. Aproveite o RotaFácil!
+              Sua assinatura foi ativada com sucesso. Aproveite todas as funcionalidades do RotaFácil!
             </p>
           </div>
         ) : (
@@ -235,40 +255,66 @@ export function SubscriptionModal({
                 ) : (
                   <div className="space-y-4 text-center">
                     <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-                      {pixData.qrCodeBase64 ? (
-                        <img
-                          src={`data:image/png;base64,${pixData.qrCodeBase64}`}
-                          alt="QR Code Pix"
-                          className="w-48 h-48 mx-auto rounded-xl border border-white/20 p-2 bg-white"
-                        />
+                      {/* Exibição GARANTIDA do QR Code */}
+                      {generatedCanvasUrl ? (
+                        <div className="bg-white p-3 rounded-2xl inline-block shadow-lg mx-auto">
+                          <img
+                            src={generatedCanvasUrl}
+                            alt="QR Code Pix Mercado Pago"
+                            className="w-48 h-48 mx-auto rounded-lg"
+                          />
+                        </div>
                       ) : (
-                        <div className="w-44 h-44 mx-auto rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col items-center justify-center p-3 text-emerald-400">
-                          <span className="text-3xl font-bold mb-1">R$ 15,00</span>
-                          <span className="text-[11px] text-white/70">Código Pix Gerado</span>
+                        <div className="w-48 h-48 mx-auto rounded-2xl bg-slate-800 border border-white/10 flex flex-col items-center justify-center p-3 text-brand-400 animate-pulse">
+                          <span className="text-sm font-semibold">Carregando QR Code...</span>
                         </div>
                       )}
 
-                      <p className="text-xs text-white/70">
-                        Escaneie com seu banco ou use o botão Copia e Cola abaixo
-                      </p>
+                      <div className="text-xs text-white/80 font-medium">
+                        Escaneie o QR Code acima com o app do seu banco
+                      </div>
 
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="w-full text-xs py-2.5"
-                        onClick={handleCopyPix}
-                      >
-                        {copied ? '✓ Código Pix Copiado!' : '📋 Copiar Código Pix'}
-                      </Button>
-                    </div>
+                      {/* Pix Copia e Cola */}
+                      <div className="pt-2">
+                        <label className="block text-[11px] text-white/50 text-left mb-1 font-medium">
+                          Ou use o Pix Copia e Cola:
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            readOnly
+                            value={pixData.qrCode}
+                            className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white/80 truncate focus:outline-none"
+                          />
+                          <Button
+                            type="button"
+                            onClick={handleCopyPix}
+                            variant={copied ? 'secondary' : 'primary'}
+                            className="text-xs px-3"
+                          >
+                            {copied ? 'Copiado!' : 'Copiar'}
+                          </Button>
+                        </div>
+                      </div>
 
-                    {/* Status Indicator */}
-                    <div className="flex items-center justify-center gap-2 text-xs text-emerald-400">
-                      <span className="relative flex h-2.5 w-2.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-                      </span>
-                      Aguardando confirmação do pagamento...
+                      {/* Status de aguardando confirmação */}
+                      <div className="flex items-center justify-center gap-2 pt-2 text-xs text-brand-300 animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-brand-400"></span>
+                        Aguardando confirmação do pagamento...
+                      </div>
+
+                      {/* Botão opcional para teste em ambiente dev/mock */}
+                      {pixData.isMock && (
+                        <div className="pt-2 border-t border-white/10">
+                          <button
+                            type="button"
+                            onClick={handleSimulatePaymentDev}
+                            className="text-[11px] text-brand-400 hover:underline"
+                          >
+                            [Dev Mode] Simular Confirmação de Pagamento
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -279,6 +325,13 @@ export function SubscriptionModal({
             {activeTab === 'card' && (
               <form onSubmit={handlePayCard} className="space-y-3">
                 <Input
+                  label="E-mail"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <Input
                   label="Número do Cartão"
                   placeholder="0000 0000 0000 0000"
                   required
@@ -286,38 +339,30 @@ export function SubscriptionModal({
                   onChange={(e) => setCardNumber(e.target.value)}
                 />
                 <Input
-                  label="Nome Impresso no Cartão"
-                  placeholder="COMO NO CARTÃO"
+                  label="Nome impresso no cartão"
+                  placeholder="NOME COMO NO CARTAO"
                   required
                   value={cardHolder}
                   onChange={(e) => setCardHolder(e.target.value)}
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <Input
-                    label="Validade"
-                    placeholder="MM/AA"
+                    label="Validade (MM/AA)"
+                    placeholder="12/28"
                     required
                     value={expiry}
                     onChange={(e) => setExpiry(e.target.value)}
                   />
                   <Input
-                    label="CVC"
+                    label="CVC / CVV"
                     placeholder="123"
                     required
-                    maxLength={4}
                     value={cvc}
                     onChange={(e) => setCvc(e.target.value)}
                   />
                 </div>
-                <Input
-                  label="CPF do Titular"
-                  placeholder="000.000.000-00"
-                  required
-                  value={cpf}
-                  onChange={(e) => setCpf(e.target.value)}
-                />
                 <Button type="submit" className="w-full" loading={loading}>
-                  Pagar R$ 15,00 com Cartão
+                  Assinar com Cartão - R$ 15,00/mês
                 </Button>
               </form>
             )}
