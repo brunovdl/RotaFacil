@@ -1,0 +1,37 @@
+{
+  "feature": "gestao-paradas-cep",
+  "timestamp": "2026-08-02T03:44:27.707Z",
+  "gitRev": "d15508a",
+  "command": "node --test",
+  "reporter": "tap",
+  "exitCode": 0,
+  "testsParsed": 30,
+  "results": {
+    "AC-009": {
+      "status": "pass",
+      "testName": "AC-009: Consulta ao ViaCEP com fallback resiliente aos Correios @spec:AC-009",
+      "method": "tap"
+    },
+    "AC-010": {
+      "status": "pass",
+      "testName": "AC-010: Geocodificação de endereço para coordenadas (lat/lng) @spec:AC-010",
+      "method": "tap"
+    },
+    "AC-011": {
+      "status": "pass",
+      "testName": "AC-011: Mapeamento flexível de colunas da planilha @spec:AC-011",
+      "method": "tap"
+    },
+    "AC-012": {
+      "status": "pass",
+      "testName": "AC-012: Paginação de 10 em 10 itens na importação mobile @spec:AC-012",
+      "method": "tap"
+    },
+    "AC-013": {
+      "status": "pass",
+      "testName": "AC-013: Leitura de CEP por câmera com OCR @spec:AC-013",
+      "method": "tap"
+    }
+  },
+  "principles": {}
+}

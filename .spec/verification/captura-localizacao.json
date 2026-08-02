@@ -1,0 +1,32 @@
+{
+  "feature": "captura-localizacao",
+  "timestamp": "2026-08-02T03:44:21.023Z",
+  "gitRev": "d15508a",
+  "command": "node --test",
+  "reporter": "tap",
+  "exitCode": 0,
+  "testsParsed": 30,
+  "results": {
+    "AC-005": {
+      "status": "pass",
+      "testName": "AC-005: Primeira tentativa rápida via localização de rede @spec:AC-005",
+      "method": "tap"
+    },
+    "AC-006": {
+      "status": "pass",
+      "testName": "AC-006: Segunda tentativa com GPS de alta precisão em caso de falha @spec:AC-006",
+      "method": "tap"
+    },
+    "AC-007": {
+      "status": "pass",
+      "testName": "AC-007: Definição manual de CEP ou coordenadas de saída @spec:AC-007",
+      "method": "tap"
+    },
+    "AC-008": {
+      "status": "pass",
+      "testName": "AC-008: Tratamento de erros de permissão de geolocalização @spec:AC-008",
+      "method": "tap"
+    }
+  },
+  "principles": {}
+}

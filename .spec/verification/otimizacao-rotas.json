@@ -1,0 +1,32 @@
+{
+  "feature": "otimizacao-rotas",
+  "timestamp": "2026-08-02T03:44:34.244Z",
+  "gitRev": "d15508a",
+  "command": "node --test",
+  "reporter": "tap",
+  "exitCode": 0,
+  "testsParsed": 30,
+  "results": {
+    "AC-014": {
+      "status": "pass",
+      "testName": "AC-014: Ordenação sequencial por Vizinho Mais Próximo (Nearest Neighbor) @spec:AC-014",
+      "method": "tap"
+    },
+    "AC-015": {
+      "status": "pass",
+      "testName": "AC-015: Validação anti-outliers para paradas distantes (> 60 km) @spec:AC-015",
+      "method": "tap"
+    },
+    "AC-016": {
+      "status": "pass",
+      "testName": "AC-016: Cálculo de tempo e distância totais da rota @spec:AC-016",
+      "method": "tap"
+    },
+    "AC-017": {
+      "status": "pass",
+      "testName": "AC-017: Renderização de marcadores numerados no mapa @spec:AC-017",
+      "method": "tap"
+    }
+  },
+  "principles": {}
+}

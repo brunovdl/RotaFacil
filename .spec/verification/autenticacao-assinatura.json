@@ -1,0 +1,32 @@
+{
+  "feature": "autenticacao-assinatura",
+  "timestamp": "2026-08-02T03:44:14.644Z",
+  "gitRev": "d15508a",
+  "command": "node --test",
+  "reporter": "tap",
+  "exitCode": 0,
+  "testsParsed": 30,
+  "results": {
+    "AC-001": {
+      "status": "pass",
+      "testName": "AC-001: Cadastro de nova conta com período de testes @spec:AC-001",
+      "method": "tap"
+    },
+    "AC-002": {
+      "status": "pass",
+      "testName": "AC-002: Autenticação com credenciais válidas @spec:AC-002",
+      "method": "tap"
+    },
+    "AC-003": {
+      "status": "pass",
+      "testName": "AC-003: Acesso liberado durante o período de trial @spec:AC-003",
+      "method": "tap"
+    },
+    "AC-004": {
+      "status": "pass",
+      "testName": "AC-004: Bloqueio de funcionalidades após expiração do trial @spec:AC-004",
+      "method": "tap"
+    }
+  },
+  "principles": {}
+}

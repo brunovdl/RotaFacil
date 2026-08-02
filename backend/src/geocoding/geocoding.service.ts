@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-interface GeocodeResult {
+export interface GeocodeResult {
   lat: number;
   lng: number;
 }

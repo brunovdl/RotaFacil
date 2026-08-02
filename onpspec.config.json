@@ -1,0 +1,18 @@
+{
+  "testCommand": "node --test",
+  "reporter": "tap",
+  "testGlobs": [
+    "test/**",
+    "frontend/__tests__/**",
+    "frontend/**/*.test.*",
+    "frontend/**/*.spec.*",
+    "backend/test/**",
+    "backend/src/**/*.spec.ts"
+  ],
+  "srcGlobs": [
+    "frontend/src/**",
+    "frontend/app/**",
+    "backend/src/**"
+  ]
+}
+

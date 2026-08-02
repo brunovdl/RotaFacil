@@ -1,0 +1,32 @@
+{
+  "feature": "historico-relatorios",
+  "timestamp": "2026-08-02T03:44:47.982Z",
+  "gitRev": "d15508a",
+  "command": "node --test",
+  "reporter": "tap",
+  "exitCode": 0,
+  "testsParsed": 30,
+  "results": {
+    "AC-022": {
+      "status": "pass",
+      "testName": "AC-022: Listagem de rotas com status e filtros @spec:AC-022",
+      "method": "tap"
+    },
+    "AC-023": {
+      "status": "pass",
+      "testName": "AC-023: Duplicação de rota existente para reuso @spec:AC-023",
+      "method": "tap"
+    },
+    "AC-024": {
+      "status": "pass",
+      "testName": "AC-024: Exportação de rota para arquivo CSV @spec:AC-024",
+      "method": "tap"
+    },
+    "AC-025": {
+      "status": "pass",
+      "testName": "AC-025: Cálculo de indicadores de economia e produtividade @spec:AC-025",
+      "method": "tap"
+    }
+  },
+  "principles": {}
+}

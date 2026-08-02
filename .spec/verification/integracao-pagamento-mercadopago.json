@@ -1,0 +1,37 @@
+{
+  "feature": "integracao-pagamento-mercadopago",
+  "timestamp": "2026-08-02T03:44:54.536Z",
+  "gitRev": "d15508a",
+  "command": "node --test",
+  "reporter": "tap",
+  "exitCode": 0,
+  "testsParsed": 30,
+  "results": {
+    "AC-026": {
+      "status": "pass",
+      "testName": "AC-026: Geração de QR Code PIX e chave Copia e Cola @spec:AC-026",
+      "method": "tap"
+    },
+    "AC-027": {
+      "status": "pass",
+      "testName": "AC-027: Liberação automática da conta via Webhook do Mercado Pago @spec:AC-027",
+      "method": "tap"
+    },
+    "AC-028": {
+      "status": "pass",
+      "testName": "AC-028: Transação com token de cartão de crédito seguro @spec:AC-028",
+      "method": "tap"
+    },
+    "AC-029": {
+      "status": "pass",
+      "testName": "AC-029: Tratamento de cartão recusado ou saldo insuficiente @spec:AC-029",
+      "method": "tap"
+    },
+    "AC-030": {
+      "status": "pass",
+      "testName": "AC-030: Polling resiliente de status do pagamento @spec:AC-030",
+      "method": "tap"
+    }
+  },
+  "principles": {}
+}

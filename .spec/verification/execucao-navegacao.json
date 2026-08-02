@@ -1,0 +1,32 @@
+{
+  "feature": "execucao-navegacao",
+  "timestamp": "2026-08-02T03:44:41.082Z",
+  "gitRev": "d15508a",
+  "command": "node --test",
+  "reporter": "tap",
+  "exitCode": 0,
+  "testsParsed": 30,
+  "results": {
+    "AC-018": {
+      "status": "pass",
+      "testName": "AC-018: Abertura de parada individual via Deeplink no Google Maps @spec:AC-018",
+      "method": "tap"
+    },
+    "AC-019": {
+      "status": "pass",
+      "testName": "AC-019: Abertura de parada individual via Deeplink no Waze @spec:AC-019",
+      "method": "tap"
+    },
+    "AC-020": {
+      "status": "pass",
+      "testName": "AC-020: Marcação de parada concluída e avanço automático @spec:AC-020",
+      "method": "tap"
+    },
+    "AC-021": {
+      "status": "pass",
+      "testName": "AC-021: Reordenação manual e ajuste em tempo real @spec:AC-021",
+      "method": "tap"
+    }
+  },
+  "principles": {}
+}
