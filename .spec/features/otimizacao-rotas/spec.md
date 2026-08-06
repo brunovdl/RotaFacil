@@ -49,7 +49,7 @@ Como entregador, quero ver a distância total em km, o tempo estimado de viagem 
 
 | ID | Suposição | Status | Resolução |
 |---|---|---|---|
-| ASM-004 | O cálculo de Haversine no NestJS leva menos de 10ms para rotas convencionais de até 100 paradas. | aberta | — |
+| ASM-004 | O cálculo de Haversine no NestJS leva menos de 10ms para rotas convencionais de até 100 paradas. | confirmada | Performance em NestJS verificada (<10ms). |
 
 ## Perguntas em aberto
 

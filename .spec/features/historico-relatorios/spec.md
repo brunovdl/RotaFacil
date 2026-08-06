@@ -49,7 +49,7 @@ Como motorista autônomo, quero ver relatórios dos meus km percorridos e da min
 
 | ID | Suposição | Status | Resolução |
 |---|---|---|---|
-| ASM-006 | A estimativa de economia de combustível considera o consumo médio de 10 km/litro para veículos urbanos de entrega. | aberta | — |
+| ASM-006 | A estimativa de economia de combustível considera o consumo médio de 10 km/litro para veículos urbanos de entrega. | confirmada | Estimativa de 10 km/L adotada nos relatórios. |
 
 ## Perguntas em aberto
 

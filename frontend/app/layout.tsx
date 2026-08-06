@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { OfflineBanner } from '@/components/ui/offline-banner';
 
 export const metadata: Metadata = {
   title: 'RotaFácil — Roteirização Inteligente',
@@ -37,7 +38,11 @@ export default function RootLayout({
         />
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
       </head>
-      <body className="pb-20 max-w-lg mx-auto min-h-screen bg-surface">{children}</body>
+      <body className="pb-20 max-w-lg mx-auto min-h-screen bg-surface">
+        <OfflineBanner />
+        {children}
+      </body>
     </html>
   );
 }
+

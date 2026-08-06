@@ -1,7 +1,7 @@
 {
   "feature": "gestao-paradas-cep",
-  "timestamp": "2026-08-02T04:00:46.137Z",
-  "gitRev": "2a0cf41",
+  "timestamp": "2026-08-06T03:03:02.399Z",
+  "gitRev": "62b82dd",
   "command": "node --test",
   "reporter": "tap",
   "exitCode": 0,

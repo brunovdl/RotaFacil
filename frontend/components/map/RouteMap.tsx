@@ -1,31 +1,59 @@
 'use client';
 
 import React from 'react';
+import { RouteMap as InteractiveRouteMap } from '@/components/ui/route-map';
 
 interface MapMarker {
+  id?: string;
   lat: number;
   lng: number;
   label?: string;
   order?: number;
+  street?: string;
+  number?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  completed?: boolean;
 }
 
 interface RouteMapProps {
   startPoint?: { lat: number; lng: number };
   markers?: MapMarker[];
+  completedStopIds?: Set<string>;
+  onSelectStop?: (stop: any) => void;
+  selectedStopId?: string | null;
 }
 
-export function RouteMap({ startPoint, markers = [] }: RouteMapProps) {
+export function RouteMap({
+  startPoint,
+  markers = [],
+  completedStopIds,
+  onSelectStop,
+  selectedStopId,
+}: RouteMapProps) {
+  const formattedStops = markers.map((m, idx) => ({
+    id: m.id || `stop-${idx}`,
+    order_index: m.order ?? idx + 1,
+    street: m.street || m.label || 'Parada',
+    number: m.number || '',
+    neighborhood: m.neighborhood || '',
+    city: m.city || '',
+    state: m.state || '',
+    lat: m.lat,
+    lng: m.lng,
+    completed: m.completed,
+  }));
+
   return (
-    <div className="relative w-full h-64 bg-slate-950/80 rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center">
-      <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#7C3AED_1px,transparent_1px)] [background-size:16px_16px]" />
-      <div className="z-10 text-center space-y-2">
-        <div className="inline-block px-3 py-1 bg-purple-600/30 border border-purple-500/40 text-purple-300 rounded-full text-xs font-semibold">
-          🗺️ Mapa de Rota Otimizada
-        </div>
-        <p className="text-xs text-gray-400">
-          {startPoint ? `Origem + ${markers.length} marcadores ordenados` : 'Carregando mapa...'}
-        </p>
-      </div>
-    </div>
+    <InteractiveRouteMap
+      startLat={startPoint?.lat || 0}
+      startLng={startPoint?.lng || 0}
+      stops={formattedStops}
+      completedStopIds={completedStopIds}
+      onSelectStop={onSelectStop}
+      selectedStopId={selectedStopId}
+    />
   );
 }
+

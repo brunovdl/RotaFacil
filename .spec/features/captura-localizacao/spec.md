@@ -49,7 +49,7 @@ Como motorista em local com sinal de GPS fraco ou indoor, quero inserir manualme
 
 | ID | Suposição | Status | Resolução |
 |---|---|---|---|
-| ASM-002 | Ambientes de produção exigem HTTPS para liberar o uso da Geolocation API no navegador Chrome mobile. | aberta | — |
+| ASM-002 | Ambientes de produção exigem HTTPS para liberar o uso da Geolocation API no navegador Chrome mobile. | confirmada | HTTPS configurado em produção. |
 
 ## Perguntas em aberto
 

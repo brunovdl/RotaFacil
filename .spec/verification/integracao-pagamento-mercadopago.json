@@ -1,7 +1,7 @@
 {
   "feature": "integracao-pagamento-mercadopago",
-  "timestamp": "2026-08-02T04:01:18.733Z",
-  "gitRev": "2a0cf41",
+  "timestamp": "2026-08-06T03:03:15.103Z",
+  "gitRev": "62b82dd",
   "command": "node --test",
   "reporter": "tap",
   "exitCode": 0,

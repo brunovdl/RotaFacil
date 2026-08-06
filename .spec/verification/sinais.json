@@ -1076,55 +1076,55 @@
       "codigo": "VERIFY_OBSOLETO",
       "feature": "autenticacao-assinatura",
       "ref": "—",
-      "ocorrencias": 2,
+      "ocorrencias": 3,
       "primeiraVez": "2026-08-02T03:17:45.686Z",
-      "ultimaVez": "2026-08-02T03:19:42.295Z",
-      "gitRev": "d15508a"
+      "ultimaVez": "2026-08-06T03:02:33.276Z",
+      "gitRev": "62b82dd"
     },
     "VERIFY_OBSOLETO::captura-localizacao::—": {
       "codigo": "VERIFY_OBSOLETO",
       "feature": "captura-localizacao",
       "ref": "—",
-      "ocorrencias": 2,
+      "ocorrencias": 3,
       "primeiraVez": "2026-08-02T03:17:45.687Z",
-      "ultimaVez": "2026-08-02T03:19:42.299Z",
-      "gitRev": "d15508a"
+      "ultimaVez": "2026-08-06T03:02:33.278Z",
+      "gitRev": "62b82dd"
     },
     "VERIFY_OBSOLETO::execucao-navegacao::—": {
       "codigo": "VERIFY_OBSOLETO",
       "feature": "execucao-navegacao",
       "ref": "—",
-      "ocorrencias": 2,
+      "ocorrencias": 3,
       "primeiraVez": "2026-08-02T03:17:45.687Z",
-      "ultimaVez": "2026-08-02T03:19:42.299Z",
-      "gitRev": "d15508a"
+      "ultimaVez": "2026-08-06T03:02:33.279Z",
+      "gitRev": "62b82dd"
     },
     "VERIFY_OBSOLETO::gestao-paradas-cep::—": {
       "codigo": "VERIFY_OBSOLETO",
       "feature": "gestao-paradas-cep",
       "ref": "—",
-      "ocorrencias": 2,
+      "ocorrencias": 3,
       "primeiraVez": "2026-08-02T03:17:45.687Z",
-      "ultimaVez": "2026-08-02T03:19:42.299Z",
-      "gitRev": "d15508a"
+      "ultimaVez": "2026-08-06T03:02:33.279Z",
+      "gitRev": "62b82dd"
     },
     "VERIFY_OBSOLETO::historico-relatorios::—": {
       "codigo": "VERIFY_OBSOLETO",
       "feature": "historico-relatorios",
       "ref": "—",
-      "ocorrencias": 2,
+      "ocorrencias": 3,
       "primeiraVez": "2026-08-02T03:17:45.687Z",
-      "ultimaVez": "2026-08-02T03:19:42.299Z",
-      "gitRev": "d15508a"
+      "ultimaVez": "2026-08-06T03:02:33.279Z",
+      "gitRev": "62b82dd"
     },
     "VERIFY_OBSOLETO::otimizacao-rotas::—": {
       "codigo": "VERIFY_OBSOLETO",
       "feature": "otimizacao-rotas",
       "ref": "—",
-      "ocorrencias": 2,
+      "ocorrencias": 3,
       "primeiraVez": "2026-08-02T03:17:45.687Z",
-      "ultimaVez": "2026-08-02T03:19:42.299Z",
-      "gitRev": "d15508a"
+      "ultimaVez": "2026-08-06T03:02:33.279Z",
+      "gitRev": "62b82dd"
     },
     "STATUS_INVALIDO::integracao-pagamento-mercadopago::.spec\\features\\integracao-pagamento-mercadopago\\spec.md": {
       "codigo": "STATUS_INVALIDO",
@@ -1134,6 +1134,24 @@
       "primeiraVez": "2026-08-02T04:01:09.535Z",
       "ultimaVez": "2026-08-02T04:01:09.537Z",
       "gitRev": "2a0cf41"
+    },
+    "VERIFY_OBSOLETO::integracao-pagamento-mercadopago::—": {
+      "codigo": "VERIFY_OBSOLETO",
+      "feature": "integracao-pagamento-mercadopago",
+      "ref": "—",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-06T03:02:33.279Z",
+      "ultimaVez": "2026-08-06T03:02:33.279Z",
+      "gitRev": "62b82dd"
+    },
+    "ARQUIVO_ORFAO::—::backend/src/common/filters/http-exception.filter.ts": {
+      "codigo": "ARQUIVO_ORFAO",
+      "feature": "—",
+      "ref": "backend/src/common/filters/http-exception.filter.ts",
+      "ocorrencias": 1,
+      "primeiraVez": "2026-08-06T03:02:33.279Z",
+      "ultimaVez": "2026-08-06T03:02:33.279Z",
+      "gitRev": "62b82dd"
     }
   }
 }

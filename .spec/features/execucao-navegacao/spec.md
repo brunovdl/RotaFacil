@@ -49,7 +49,7 @@ Como entregador ao concluir um pacote, quero marcar a entrega atual como conclu�
 
 | ID | Suposição | Status | Resolução |
 |---|---|---|---|
-| ASM-005 | Os deeplinks de mapas abrem automaticamente o app nativo no Android e iOS quando instalados no celular. | aberta | — |
+| ASM-005 | Os deeplinks de mapas abrem automaticamente o app nativo no Android e iOS quando instalados no celular. | confirmada | Deeplinks verificados para Google Maps e Waze. |
 
 ## Perguntas em aberto
 

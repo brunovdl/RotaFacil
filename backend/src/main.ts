@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const compression = require('compression');
 
@@ -16,6 +17,8 @@ async function bootstrap() {
     credentials: true,
   });
 
+  app.useGlobalFilters(new HttpExceptionFilter());
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -25,6 +28,7 @@ async function bootstrap() {
   );
 
   app.setGlobalPrefix('api');
+
 
   const port = process.env.BACKEND_PORT || process.env.PORT || 3001;
   await app.listen(port);

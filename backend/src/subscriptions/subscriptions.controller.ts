@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Headers, UseGuards } from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -46,7 +46,12 @@ export class SubscriptionsController {
   }
 
   @Post('webhook')
-  handleWebhook(@Body() body: any, @Query() query: any) {
-    return this.subscriptionsService.handleWebhook(body, query);
+  handleWebhook(
+    @Body() body: any,
+    @Query() query: any,
+    @Headers('x-signature') signature?: string,
+  ) {
+    return this.subscriptionsService.handleWebhook(body, query, signature);
   }
 }
+

@@ -59,7 +59,7 @@ Como entregador com pacote em mãos, quero apontar a câmera do celular para a e
 
 | ID | Suposição | Status | Resolução |
 |---|---|---|---|
-| ASM-003 | Respostas de geocodificação devem ter cache em memória no backend NestJS para evitar estourar o limite de requisições do Nominatim. | aberta | — |
+| ASM-003 | Respostas de geocodificação devem ter cache em memória no backend NestJS para evitar estourar o limite de requisições do Nominatim. | confirmada | Cache de 24h em memória implementado em GeocodingService. |
 
 ## Perguntas em aberto
 

@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ConfigModule } from './config.module';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
@@ -16,6 +18,12 @@ import { VehiclesModule } from './vehicles/vehicles.module';
   imports: [
     ConfigModule,
     DatabaseModule,
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 30,
+      },
+    ]),
     AuthModule,
     UsersModule,
     RoutesModule,
@@ -27,5 +35,12 @@ import { VehiclesModule } from './vehicles/vehicles.module';
     OptimizationModule,
     VehiclesModule,
   ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
+

@@ -324,11 +324,13 @@ export class SubscriptionsService {
     }
   }
 
-  async handleWebhook(body: any, query: any) {
+  async handleWebhook(body: any, query: any, signature?: string) {
     const paymentId = body?.data?.id || query?.id || body?.id;
     const action = body?.action || query?.topic;
 
-    this.logger.log(`Received Webhook Mercado Pago: action=${action}, paymentId=${paymentId}`);
+    this.logger.log(
+      `Received Webhook Mercado Pago: action=${action}, paymentId=${paymentId}, hasSignature=${Boolean(signature)}`,
+    );
 
     if (!paymentId) return { received: true };
 
@@ -357,3 +359,4 @@ export class SubscriptionsService {
     return { received: true };
   }
 }
+

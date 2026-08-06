@@ -1,7 +1,7 @@
 {
   "feature": "execucao-navegacao",
-  "timestamp": "2026-08-02T04:00:57.190Z",
-  "gitRev": "2a0cf41",
+  "timestamp": "2026-08-06T03:02:56.677Z",
+  "gitRev": "62b82dd",
   "command": "node --test",
   "reporter": "tap",
   "exitCode": 0,

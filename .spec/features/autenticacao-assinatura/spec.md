@@ -50,7 +50,7 @@ Como dono da plataforma, quero bloquear a criação de novas rotas quando o tria
 
 | ID | Suposição | Status | Resolução |
 |---|---|---|---|
-| ASM-001 | O hash de senhas deve ser gerado utilizando Bcrypt no backend NestJS antes de salvar no Supabase. | aberta | — |
+| ASM-001 | O hash de senhas deve ser gerado utilizando Bcrypt no backend NestJS antes de salvar no Supabase. | confirmada | Implementado com bcryptjs no NestJS. |
 
 ## Perguntas em aberto
 
